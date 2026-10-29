@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Zono licences</title>
+<style>
+  :root { --bg:#f3f4f1; --card:#fff; --ink:#1d2321; --muted:#5d6763; --line:#d9ddd8; --accent:#0d6660; --warn:#9a3412; --ok:#166534; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif; }
+  header { background:var(--accent); color:#fff; padding:14px 20px; display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; }
+  header h1 { font-size:18px; margin:0; }
+  main { max-width:1100px; margin:0 auto; padding:20px 16px 60px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:16px; }
+  h2 { font-size:16px; margin:0 0 12px; }
+  label { display:block; font-size:12px; font-weight:600; color:var(--muted); margin:8px 0 4px; }
+  input, select, textarea { width:100%; padding:8px 10px; border:1px solid var(--line); border-radius:8px; font:inherit; background:#fff; }
+  .row { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:10px; }
+  button { border:1px solid var(--line); background:#fff; border-radius:8px; padding:8px 12px; font:inherit; font-weight:600; cursor:pointer; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+  button.danger { color:var(--warn); }
+  table { width:100%; border-collapse:collapse; font-size:14px; }
+  th, td { text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--muted); font-size:12px; }
+  .pill { display:inline-block; padding:1px 8px; border-radius:99px; font-size:12px; font-weight:700; }
+  .active { background:#dcfce7; color:var(--ok); } .revoked, .expired { background:#fee2e2; color:var(--warn); }
+  .key { font:700 20px/1.3 ui-monospace,Menlo,Consolas,monospace; letter-spacing:1px; background:#fff7ed; border:1px dashed var(--warn); padding:12px; border-radius:8px; word-break:break-all; }
+  .muted { color:var(--muted); font-size:13px; }
+  .hidden { display:none; }
+  .table-wrap { overflow-x:auto; }
+  details summary { cursor:pointer; color:var(--accent); font-weight:600; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Zono licences</h1>
+  <div><button id="logout" class="hidden">Lock</button></div>
+</header>
+<main>
+  <section id="login" class="card">
+    <h2>Admin key</h2>
+    <p class="muted">On the server: <code>sudo cat /etc/zono-licence/admin.key</code>. It's kept in this browser tab only until you close it.</p>
+    <input id="adminKey" type="password" autocomplete="off" placeholder="zono-admin-…">
+    <p><button class="primary" id="go">Open</button> <span id="loginMsg" class="muted"></span></p>
+  </section>
+
+  <div id="app" class="hidden">
+    <section class="card">
+      <h2>New licence</h2>
+      <div class="row">
+        <div><label>Business name</label><input id="nBusiness" maxlength="80"></div>
+        <div><label>Email</label><input id="nEmail" type="email" maxlength="120"></div>
+        <div><label>Plan</label><select id="nPlan"><option value="monthly">Monthly (£12)</option><option value="yearly">Yearly (£120)</option><option value="lifetime">Lifetime</option><option value="trial">Extended trial</option></select></div>
+        <div><label>Team members included</label><input id="nSeats" type="number" min="1" value="5"></div>
+        <div><label>Paid until (blank = no end)</label><input id="nExpires" type="date"></div>
+        <div><label>Businesses/PCs allowed</label><input id="nMax" type="number" min="1" value="1"></div>
+      </div>
+      <label>Notes</label><input id="nNotes" maxlength="300">
+      <p><button class="primary" id="create">Make licence key</button></p>
+      <div id="newKey" class="hidden">
+        <p><strong>Licence key — copy it now, it isn't shown again:</strong></p>
+        <div class="key" id="newKeyText"></div>
+        <p><button id="copyKey">Copy</button></p>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Licences <button id="refresh" style="float:right">Refresh</button></h2>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Business</th><th>Plan</th><th>Team</th><th>Paid until</th><th>Status</th><th>Used on</th><th></th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table></div>
+    </section>
+
+    <section class="card">
+      <details><summary>Activity log</summary><div class="table-wrap"><table><tbody id="events"></tbody></table></div></details>
+      <p><button id="backup">Download a backup of the licence database</button></p>
+    </section>
+  </div>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+let key = sessionStorage.getItem("zonoAdmin") || "";
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const when = s => s ? new Date(s).toLocaleString("en-GB", {day:"numeric", month:"short", year:"numeric", hour:"2-digit", minute:"2-digit"}) : "";
+
+async function api(path, body) {
+  const r = await fetch("/api/admin" + path, {
+    method: body === undefined ? "GET" : "POST",
+    headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body)
+  });
+  if (r.status === 401) { lock("That admin key isn't right."); throw new Error("401"); }
+  if (path === "/backup") return r;
+  const j = await r.json();
+  if (!r.ok) { alert(j.message || "Something went wrong."); throw new Error(r.status); }
+  return j;
+}
+
+function lock(msg) {
+  key = ""; sessionStorage.removeItem("zonoAdmin");
+  $("app").classList.add("hidden"); $("logout").classList.add("hidden"); $("login").classList.remove("hidden");
+  $("loginMsg").textContent = msg || "";
+}
+
+async function open() {
+  key = $("adminKey").value.trim() || key;
+  if (!key) return;
+  try { await load(); } catch { return; }
+  sessionStorage.setItem("zonoAdmin", key);
+  $("adminKey").value = "";
+  $("login").classList.add("hidden"); $("app").classList.remove("hidden"); $("logout").classList.remove("hidden");
+}
+
+async function load() {
+  const list = await api("/licences");
+  $("rows").innerHTML = list.map(l => {
+    const status = l.status === "active" && l.expires && new Date(l.expires) < new Date(new Date().toDateString()) ? "expired" : l.status;
+    const acts = l.activations.filter(a => !a.released);
+    return `<tr>
+      <td><strong>${esc(l.businessName)}</strong><div class="muted">${esc(l.email)} · key …${esc(l.keyHint)} · ${esc(l.id)}</div>${l.notes ? `<div class="muted">${esc(l.notes)}</div>` : ""}</td>
+      <td>${esc(l.plan)}</td><td>${l.teamSeats}</td><td>${esc(l.expires || "—")}</td>
+      <td><span class="pill ${status}">${status}</span></td>
+      <td>${acts.length}/${l.maxActivations}${acts.map(a => `<div class="muted">${esc(a.businessName || a.deviceName)} · ${esc(a.platform)} ${esc(a.appVersion)} · seen ${when(a.lastSeenUtc)} <button data-release="${a.id}">Release</button></div>`).join("")}</td>
+      <td style="white-space:nowrap">
+        <button data-edit="${l.id}">Change</button>
+        ${l.status === "revoked" ? `<button data-restore="${l.id}">Restore</button>` : `<button class="danger" data-revoke="${l.id}">Cancel</button>`}
+        <button data-newkey="${l.id}">New key</button>
+      </td></tr>`;
+  }).join("") || `<tr><td colspan="7" class="muted">No licences yet.</td></tr>`;
+  const ev = await api("/events");
+  $("events").innerHTML = ev.map(e => `<tr><td class="muted">${when(e.at)}</td><td>${esc(e.what)}</td><td>${esc(e.detail)}</td><td class="muted">${esc(e.licenceId || "")} ${esc(e.ip)}</td></tr>`).join("");
+  window.licences = list;
+}
+
+$("go").onclick = open;
+$("adminKey").onkeydown = e => { if (e.key === "Enter") open(); };
+$("logout").onclick = () => lock("Locked.");
+$("refresh").onclick = load;
+
+$("create").onclick = async () => {
+  const j = await api("/licences", {
+    businessName: $("nBusiness").value, email: $("nEmail").value, plan: $("nPlan").value,
+    teamSeats: +$("nSeats").value || 5, expires: $("nExpires").value || null, maxActivations: +$("nMax").value || 1, notes: $("nNotes").value
+  });
+  $("newKeyText").textContent = j.key; $("newKey").classList.remove("hidden");
+  ["nBusiness", "nEmail", "nNotes", "nExpires"].forEach(id => $(id).value = "");
+  load();
+};
+$("copyKey").onclick = () => navigator.clipboard.writeText($("newKeyText").textContent);
+
+$("rows").onclick = async e => {
+  const b = e.target.closest("button"); if (!b) return;
+  if (b.dataset.revoke && confirm("Cancel this licence? The apps go read-only at their next check (within a week).")) await api(`/licences/${b.dataset.revoke}`, { status: "revoked" });
+  if (b.dataset.restore) await api(`/licences/${b.dataset.restore}`, { status: "active" });
+  if (b.dataset.release && confirm("Release this activation? The key can then be used on another business or PC.")) await api(`/activations/${b.dataset.release}/release`, {});
+  if (b.dataset.newkey && confirm("Make a new key? The old key stops working for new activations (current ones keep working).")) {
+    const j = await api(`/licences/${b.dataset.newkey}/new-key`, {});
+    $("newKeyText").textContent = j.key; $("newKey").classList.remove("hidden"); window.scrollTo(0, 0);
+  }
+  if (b.dataset.edit) {
+    const l = window.licences.find(x => x.id === b.dataset.edit);
+    const seats = prompt("Team members included", l.teamSeats); if (seats === null) return;
+    const expires = prompt("Paid until (YYYY-MM-DD, blank = no end)", l.expires || ""); if (expires === null) return;
+    const max = prompt("Businesses/PCs allowed", l.maxActivations); if (max === null) return;
+    await api(`/licences/${l.id}`, { teamSeats: +seats || l.teamSeats, expires: expires.trim(), maxActivations: +max || l.maxActivations });
+  }
+  load();
+};
+
+$("backup").onclick = async () => {
+  const r = await api("/backup");
+  const blob = await r.blob();
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+  a.download = `zono-licences-${new Date().toISOString().slice(0,10)}.db`; a.click();
+};
+
+if (key) open();
+</script>
+</body>
+</html>
