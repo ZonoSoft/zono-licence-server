@@ -46,11 +46,11 @@ public sealed partial class CustomerService(CustomerStore customers, LicenceStor
         m.InstallId.Length == 0 ? m.TrialStarted
             : customers.MachinesForInstall(m.InstallId).Select(x => x.TrialStarted).Append(m.TrialStarted).Min();
 
-    /// <summary>The licence for this business or machine's account, if there is one that has been paid for.</summary>
+    /// <summary>The licence for this business, and its token once it has been paid for.</summary>
     private (Licence? Licence, string? Token) LicenceFor(Machine m, string businessName, string deviceName)
     {
-        var licence = (m.InstallId.Length > 0 ? licences.ForInstall(m.InstallId) : null)
-                      ?? (m.AccountId is { } a ? licences.ForAccount(a).FirstOrDefault(l => l.Status != "revoked") : null);
+        // Only the business the licence was registered (or activated) for; a deactivated business stays deactivated
+        var licence = m.InstallId.Length > 0 ? licences.ForInstall(m.InstallId) : null;
         if (licence is null || licence.Status == "pending" || m.InstallId.Length == 0) return (licence, null);
         if (!licences.Activate(licence, m.InstallId, businessName, deviceName, m.Platform, m.AppVersion)) return (licence, null);
         return (licence, licensing.Token(licence, m.InstallId, businessName));
