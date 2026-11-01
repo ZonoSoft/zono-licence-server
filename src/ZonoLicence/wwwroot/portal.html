@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ZonoSoft customer portal</title>
+<style>
+  :root { --bg:#f3f4f1; --card:#fff; --ink:#1d2321; --muted:#5d6763; --line:#d9ddd8; --accent:#0d6660; --accent-soft:#dcebe8; --warn:#9a3412; --warn-soft:#fff1e6; --ok:#166534; --ok-soft:#dcfce7; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; }
+  header { background:var(--accent); color:#fff; }
+  .bar { max-width:960px; margin:0 auto; padding:14px 16px; display:flex; justify-content:space-between; align-items:center; gap:12px; }
+  .brand { display:flex; align-items:center; gap:10px; font-weight:800; font-size:18px; }
+  .brand svg { width:30px; height:30px; }
+  main { max-width:960px; margin:0 auto; padding:24px 16px 64px; }
+  h1 { font-size:26px; margin:0 0 4px; }
+  h2 { font-size:18px; margin:0 0 12px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:20px; margin-bottom:18px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:14px; }
+  label { display:block; font-size:13px; font-weight:700; color:var(--muted); margin:10px 0 4px; }
+  input, select { width:100%; padding:10px 12px; border:1px solid var(--line); border-radius:10px; font:inherit; background:#fff; color:var(--ink); }
+  input:focus, select:focus { outline:2px solid var(--accent); outline-offset:1px; }
+  .phone { display:grid; grid-template-columns:minmax(0,1.3fr) minmax(0,1fr); gap:8px; }
+  button { border:1px solid var(--line); background:#fff; color:var(--ink); border-radius:10px; padding:10px 16px; font:inherit; font-weight:700; cursor:pointer; }
+  button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
+  header button { background:transparent; color:#fff; border-color:rgba(255,255,255,.5); }
+  .muted { color:var(--muted); font-size:14px; }
+  .msg { margin-top:10px; font-weight:600; }
+  .msg.bad { color:var(--warn); } .msg.good { color:var(--ok); }
+  .pill { display:inline-block; padding:2px 10px; border-radius:99px; font-size:13px; font-weight:800; }
+  .active { background:var(--ok-soft); color:var(--ok); } .pending { background:var(--warn-soft); color:var(--warn); }
+  .expired, .revoked { background:#fee2e2; color:var(--warn); }
+  .key { font:700 20px/1.3 ui-monospace,Menlo,Consolas,monospace; letter-spacing:1px; background:var(--accent-soft); border-radius:10px; padding:12px 14px; word-break:break-all; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; }
+  dl { display:grid; grid-template-columns:max-content 1fr; gap:6px 16px; margin:12px 0 0; }
+  dt { color:var(--muted); font-size:14px; } dd { margin:0; font-weight:600; }
+  .note { background:var(--warn-soft); border-radius:10px; padding:12px 14px; }
+  .hidden { display:none !important; }
+  .narrow { max-width:420px; margin:40px auto; }
+  @media (max-width:520px) { .phone { grid-template-columns:1fr; } dl { grid-template-columns:1fr; } dt { margin-top:6px; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <div class="brand">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5,5 H19 A2,2 0 0 1 21,7 V19 A2,2 0 0 1 19,21 H5 A2,2 0 0 1 3,19 V7 A2,2 0 0 1 5,5 Z M3,10 H21 M8,3 V7 M16,3 V7"/></svg>
+      ZonoSoft
+    </div>
+    <button id="signOut" class="hidden">Sign out</button>
+  </div>
+</header>
+
+<main>
+  <!-- Sign in -->
+  <section id="loginView" class="card narrow">
+    <h1>Customer portal</h1>
+    <p class="muted">Sign in with the username and password you chose when you registered Zono Workforce.</p>
+    <form id="loginForm">
+      <label for="lUser">Username</label>
+      <input id="lUser" autocomplete="username" maxlength="120" required>
+      <label for="lPass">Password</label>
+      <input id="lPass" type="password" autocomplete="current-password" maxlength="200" required>
+      <p><button class="primary" type="submit">Sign in</button></p>
+      <div id="loginMsg" class="msg bad" role="alert"></div>
+    </form>
+    <p class="muted">No account yet? Register from the app: Zono Workforce → Settings → Licence.</p>
+  </section>
+
+  <!-- Signed in -->
+  <div id="homeView" class="hidden">
+    <h1 id="hello">Your account</h1>
+    <p class="muted" id="since"></p>
+
+    <section class="card">
+      <h2>Licence</h2>
+      <div id="licences"></div>
+    </section>
+
+    <section class="card">
+      <h2>Payment</h2>
+      <div id="payment"></div>
+    </section>
+
+    <section class="card">
+      <h2>Contact details</h2>
+      <form id="detailsForm">
+        <div class="grid">
+          <div><label for="dBusiness">Business name</label><input id="dBusiness" maxlength="80" required></div>
+          <div><label for="dContact">Contact name</label><input id="dContact" maxlength="80" autocomplete="name" required></div>
+          <div><label for="dEmail">Contact email</label><input id="dEmail" type="email" maxlength="120" autocomplete="email" required></div>
+          <div>
+            <label for="dPhone">Contact phone number</label>
+            <div class="phone">
+              <select id="dDial" aria-label="Country code"></select>
+              <input id="dPhone" inputmode="tel" maxlength="30" autocomplete="tel-national" placeholder="7700 900123" required>
+            </div>
+          </div>
+        </div>
+        <p><button class="primary" type="submit">Save details</button></p>
+        <div id="detailsMsg" class="msg" role="status"></div>
+      </form>
+      <p class="muted">Username: <strong id="uName"></strong></p>
+    </section>
+
+    <section class="card">
+      <h2>Change password</h2>
+      <form id="passForm">
+        <div class="grid">
+          <div><label for="pOld">Current password</label><input id="pOld" type="password" autocomplete="current-password" required></div>
+          <div><label for="pNew">New password (at least 10 characters)</label><input id="pNew" type="password" autocomplete="new-password" minlength="10" required></div>
+          <div><label for="pNew2">New password again</label><input id="pNew2" type="password" autocomplete="new-password" required></div>
+        </div>
+        <p><button class="primary" type="submit">Change password</button></p>
+        <div id="passMsg" class="msg" role="status"></div>
+      </form>
+    </section>
+  </div>
+</main>
+
+<script>
+const COUNTRIES = [["Afghanistan", "AF", "+93"], ["Åland Islands", "AX", "+358"], ["Albania", "AL", "+355"], ["Algeria", "DZ", "+213"], ["American Samoa", "AS", "+1-684"], ["Andorra", "AD", "+376"], ["Angola", "AO", "+244"], ["Anguilla", "AI", "+1-264"], ["Antigua and Barbuda", "AG", "+1-268"], ["Argentina", "AR", "+54"], ["Armenia", "AM", "+374"], ["Aruba", "AW", "+297"], ["Australia", "AU", "+61"], ["Austria", "AT", "+43"], ["Azerbaijan", "AZ", "+994"], ["Bahamas", "BS", "+1-242"], ["Bahrain", "BH", "+973"], ["Bangladesh", "BD", "+880"], ["Barbados", "BB", "+1-246"], ["Belarus", "BY", "+375"], ["Belgium", "BE", "+32"], ["Belize", "BZ", "+501"], ["Benin", "BJ", "+229"], ["Bermuda", "BM", "+1-441"], ["Bhutan", "BT", "+975"], ["Bolivia", "BO", "+591"], ["Bonaire, Sint Eustatius and Saba", "BQ", "+599"], ["Bosnia and Herzegovina", "BA", "+387"], ["Botswana", "BW", "+267"], ["Brazil", "BR", "+55"], ["British Indian Ocean Territory", "IO", "+246"], ["British Virgin Islands", "VG", "+1-284"], ["Brunei", "BN", "+673"], ["Bulgaria", "BG", "+359"], ["Burkina Faso", "BF", "+226"], ["Burundi", "BI", "+257"], ["Cambodia", "KH", "+855"], ["Cameroon", "CM", "+237"], ["Canada", "CA", "+1"], ["Cape Verde", "CV", "+238"], ["Cayman Islands", "KY", "+1-345"], ["Central African Republic", "CF", "+236"], ["Chad", "TD", "+235"], ["Chile", "CL", "+56"], ["China", "CN", "+86"], ["Christmas Island", "CX", "+61"], ["Cocos (Keeling) Islands", "CC", "+61"], ["Colombia", "CO", "+57"], ["Comoros", "KM", "+269"], ["Congo", "CG", "+242"], ["Congo (DR)", "CD", "+243"], ["Cook Islands", "CK", "+682"], ["Costa Rica", "CR", "+506"], ["Côte d'Ivoire", "CI", "+225"], ["Croatia", "HR", "+385"], ["Cuba", "CU", "+53"], ["Curaçao", "CW", "+599"], ["Cyprus", "CY", "+357"], ["Czechia", "CZ", "+420"], ["Denmark", "DK", "+45"], ["Djibouti", "DJ", "+253"], ["Dominica", "DM", "+1-767"], ["Dominican Republic", "DO", "+1-809"], ["Ecuador", "EC", "+593"], ["Egypt", "EG", "+20"], ["El Salvador", "SV", "+503"], ["Equatorial Guinea", "GQ", "+240"], ["Eritrea", "ER", "+291"], ["Estonia", "EE", "+372"], ["Eswatini", "SZ", "+268"], ["Ethiopia", "ET", "+251"], ["Falkland Islands", "FK", "+500"], ["Faroe Islands", "FO", "+298"], ["Fiji", "FJ", "+679"], ["Finland", "FI", "+358"], ["France", "FR", "+33"], ["French Guiana", "GF", "+594"], ["French Polynesia", "PF", "+689"], ["Gabon", "GA", "+241"], ["Gambia", "GM", "+220"], ["Georgia", "GE", "+995"], ["Germany", "DE", "+49"], ["Ghana", "GH", "+233"], ["Gibraltar", "GI", "+350"], ["Greece", "GR", "+30"], ["Greenland", "GL", "+299"], ["Grenada", "GD", "+1-473"], ["Guadeloupe", "GP", "+590"], ["Guam", "GU", "+1-671"], ["Guatemala", "GT", "+502"], ["Guernsey", "GG", "+44"], ["Guinea", "GN", "+224"], ["Guinea-Bissau", "GW", "+245"], ["Guyana", "GY", "+592"], ["Haiti", "HT", "+509"], ["Honduras", "HN", "+504"], ["Hong Kong", "HK", "+852"], ["Hungary", "HU", "+36"], ["Iceland", "IS", "+354"], ["India", "IN", "+91"], ["Indonesia", "ID", "+62"], ["Iran", "IR", "+98"], ["Iraq", "IQ", "+964"], ["Ireland", "IE", "+353"], ["Isle of Man", "IM", "+44"], ["Israel", "IL", "+972"], ["Italy", "IT", "+39"], ["Jamaica", "JM", "+1-876"], ["Japan", "JP", "+81"], ["Jersey", "JE", "+44"], ["Jordan", "JO", "+962"], ["Kazakhstan", "KZ", "+7"], ["Kenya", "KE", "+254"], ["Kiribati", "KI", "+686"], ["Kosovo", "XK", "+383"], ["Kuwait", "KW", "+965"], ["Kyrgyzstan", "KG", "+996"], ["Laos", "LA", "+856"], ["Latvia", "LV", "+371"], ["Lebanon", "LB", "+961"], ["Lesotho", "LS", "+266"], ["Liberia", "LR", "+231"], ["Libya", "LY", "+218"], ["Liechtenstein", "LI", "+423"], ["Lithuania", "LT", "+370"], ["Luxembourg", "LU", "+352"], ["Macao", "MO", "+853"], ["Madagascar", "MG", "+261"], ["Malawi", "MW", "+265"], ["Malaysia", "MY", "+60"], ["Maldives", "MV", "+960"], ["Mali", "ML", "+223"], ["Malta", "MT", "+356"], ["Marshall Islands", "MH", "+692"], ["Martinique", "MQ", "+596"], ["Mauritania", "MR", "+222"], ["Mauritius", "MU", "+230"], ["Mayotte", "YT", "+262"], ["Mexico", "MX", "+52"], ["Micronesia", "FM", "+691"], ["Moldova", "MD", "+373"], ["Monaco", "MC", "+377"], ["Mongolia", "MN", "+976"], ["Montenegro", "ME", "+382"], ["Montserrat", "MS", "+1-664"], ["Morocco", "MA", "+212"], ["Mozambique", "MZ", "+258"], ["Myanmar", "MM", "+95"], ["Namibia", "NA", "+264"], ["Nauru", "NR", "+674"], ["Nepal", "NP", "+977"], ["Netherlands", "NL", "+31"], ["New Caledonia", "NC", "+687"], ["New Zealand", "NZ", "+64"], ["Nicaragua", "NI", "+505"], ["Niger", "NE", "+227"], ["Nigeria", "NG", "+234"], ["Niue", "NU", "+683"], ["Norfolk Island", "NF", "+672"], ["North Korea", "KP", "+850"], ["North Macedonia", "MK", "+389"], ["Northern Mariana Islands", "MP", "+1-670"], ["Norway", "NO", "+47"], ["Oman", "OM", "+968"], ["Pakistan", "PK", "+92"], ["Palau", "PW", "+680"], ["Palestine", "PS", "+970"], ["Panama", "PA", "+507"], ["Papua New Guinea", "PG", "+675"], ["Paraguay", "PY", "+595"], ["Peru", "PE", "+51"], ["Philippines", "PH", "+63"], ["Pitcairn Islands", "PN", "+64"], ["Poland", "PL", "+48"], ["Portugal", "PT", "+351"], ["Puerto Rico", "PR", "+1-787"], ["Qatar", "QA", "+974"], ["Réunion", "RE", "+262"], ["Romania", "RO", "+40"], ["Russia", "RU", "+7"], ["Rwanda", "RW", "+250"], ["Saint Barthélemy", "BL", "+590"], ["Saint Helena", "SH", "+290"], ["Saint Kitts and Nevis", "KN", "+1-869"], ["Saint Lucia", "LC", "+1-758"], ["Saint Martin", "MF", "+590"], ["Saint Pierre and Miquelon", "PM", "+508"], ["Saint Vincent and the Grenadines", "VC", "+1-784"], ["Samoa", "WS", "+685"], ["San Marino", "SM", "+378"], ["São Tomé and Príncipe", "ST", "+239"], ["Saudi Arabia", "SA", "+966"], ["Senegal", "SN", "+221"], ["Serbia", "RS", "+381"], ["Seychelles", "SC", "+248"], ["Sierra Leone", "SL", "+232"], ["Singapore", "SG", "+65"], ["Sint Maarten", "SX", "+1-721"], ["Slovakia", "SK", "+421"], ["Slovenia", "SI", "+386"], ["Solomon Islands", "SB", "+677"], ["Somalia", "SO", "+252"], ["South Africa", "ZA", "+27"], ["South Korea", "KR", "+82"], ["South Sudan", "SS", "+211"], ["Spain", "ES", "+34"], ["Sri Lanka", "LK", "+94"], ["Sudan", "SD", "+249"], ["Suriname", "SR", "+597"], ["Svalbard and Jan Mayen", "SJ", "+47"], ["Sweden", "SE", "+46"], ["Switzerland", "CH", "+41"], ["Syria", "SY", "+963"], ["Taiwan", "TW", "+886"], ["Tajikistan", "TJ", "+992"], ["Tanzania", "TZ", "+255"], ["Thailand", "TH", "+66"], ["Timor-Leste", "TL", "+670"], ["Togo", "TG", "+228"], ["Tokelau", "TK", "+690"], ["Tonga", "TO", "+676"], ["Trinidad and Tobago", "TT", "+1-868"], ["Tunisia", "TN", "+216"], ["Turkey", "TR", "+90"], ["Turkmenistan", "TM", "+993"], ["Turks and Caicos Islands", "TC", "+1-649"], ["Tuvalu", "TV", "+688"], ["Uganda", "UG", "+256"], ["Ukraine", "UA", "+380"], ["United Arab Emirates", "AE", "+971"], ["United Kingdom", "GB", "+44"], ["United States", "US", "+1"], ["US Virgin Islands", "VI", "+1-340"], ["Uruguay", "UY", "+598"], ["Uzbekistan", "UZ", "+998"], ["Vanuatu", "VU", "+678"], ["Vatican City", "VA", "+39"], ["Venezuela", "VE", "+58"], ["Vietnam", "VN", "+84"], ["Wallis and Futuna", "WF", "+681"], ["Western Sahara", "EH", "+212"], ["Yemen", "YE", "+967"], ["Zambia", "ZM", "+260"], ["Zimbabwe", "ZW", "+263"]];
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const day = s => s ? new Date(s).toLocaleDateString("en-GB", { day:"numeric", month:"long", year:"numeric" }) : "";
+const money = n => "£" + Number(n).toFixed(Number(n) % 1 ? 2 : 0);
+const planName = p => ({ monthly:"Monthly", yearly:"Yearly", lifetime:"Lifetime", trial:"Extended trial" })[p] || p;
+const statusName = s => ({ active:"Active", pending:"Waiting for payment", expired:"Expired", revoked:"Cancelled" })[s] || s;
+
+$("dDial").innerHTML = COUNTRIES.map(([name, iso, code]) => `<option value="${iso}|${code}">${esc(name)} (${code})</option>`).join("");
+function setDial(code) {
+  const opts = [...$("dDial").options];
+  const pick = opts.find(o => o.value.endsWith("|" + code) && (code !== "+44" || o.value.startsWith("GB|"))) || opts.find(o => o.value.startsWith("GB|"));
+  if (pick) $("dDial").value = pick.value;
+}
+
+async function call(path, body) {
+  const r = await fetch("/api/portal" + path, {
+    method: body === undefined ? "GET" : "POST", credentials: "same-origin",
+    headers: { "Content-Type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body)
+  });
+  let j = {}; try { j = await r.json(); } catch {}
+  if (r.status === 401 && path !== "/login") { show(false); throw new Error("signed out"); }
+  if (r.status === 429) return { ok: false, message: "Too many tries. Wait a minute and try again." };
+  return j;
+}
+
+function show(signedIn) {
+  $("loginView").classList.toggle("hidden", signedIn);
+  $("homeView").classList.toggle("hidden", !signedIn);
+  $("signOut").classList.toggle("hidden", !signedIn);
+}
+
+async function load() {
+  const me = await call("/me");
+  if (!me.ok) return;
+  show(true);
+  $("hello").textContent = me.businessName || "Your account";
+  $("since").textContent = `${me.contactName} · customer since ${day(me.created)}`;
+  $("uName").textContent = me.username;
+  $("dBusiness").value = me.businessName; $("dContact").value = me.contactName; $("dEmail").value = me.email; $("dPhone").value = me.phone;
+  setDial(me.phoneCountry);
+
+  $("licences").innerHTML = me.licences.length ? me.licences.map(l => `
+    <div class="key"><span>${l.key ? esc(l.key) : "ZONO-…-" + esc(l.keyHint)}</span>${l.key ? `<button type="button" data-copy="${esc(l.key)}">Copy</button>` : ""}</div>
+    <dl>
+      <dt>Status</dt><dd><span class="pill ${esc(l.status)}">${esc(statusName(l.status))}</span></dd>
+      <dt>Plan</dt><dd>${esc(planName(l.plan))} · ${l.teamSeats} team members${l.price ? ` · ${money(l.price)} a ${l.plan === "yearly" ? "year" : "month"}` : ""}</dd>
+      <dt>Paid until</dt><dd>${l.paidUntil ? day(l.paidUntil) : (l.status === "pending" ? "Not paid yet" : "No end date")}</dd>
+      <dt>Used on</dt><dd>${l.usedOn.length ? l.usedOn.map(u => `${esc(u.businessName || u.deviceName)} <span class="muted">(${esc(u.platform)} ${esc(u.appVersion)}, last checked ${day(u.lastSeenUtc)})</span>`).join("<br>") : "Not in use"}</dd>
+    </dl>
+    ${l.status === "pending" ? `<p class="note">Your licence starts as soon as your payment is received. The app picks it up by itself — there's nothing to type in. Until then your free trial carries on.</p>` : ""}
+    ${!l.key ? `<p class="muted">The full key isn't shown for licences made before the portal opened. Contact us for a new key if you need it.</p>` : ""}
+  `).join("<hr>") : `<p class="muted">No licence yet.</p>`;
+
+  const due = me.licences.find(l => l.status === "pending" || l.status === "expired") || me.licences[0];
+  $("payment").innerHTML = due && due.price
+    ? `<dl><dt>Amount</dt><dd>${money(due.price)} a ${due.plan === "yearly" ? "year" : "month"} (${due.teamSeats} team members)</dd>
+         <dt>Payment methods</dt><dd>Card and Direct Debit payments are coming soon.</dd></dl>
+       <p class="note">To pay now, email <a href="mailto:ZonoSoft@outlook.com?subject=${encodeURIComponent("Licence payment: " + me.businessName)}">ZonoSoft@outlook.com</a> with your business name and we'll tell you how to pay. Your licence starts when payment arrives.</p>`
+    : `<p class="muted">Nothing to pay.</p>`;
+}
+
+$("licences").onclick = e => {
+  const b = e.target.closest("button[data-copy]"); if (!b) return;
+  navigator.clipboard.writeText(b.dataset.copy).then(() => { b.textContent = "Copied"; setTimeout(() => b.textContent = "Copy", 1500); });
+};
+
+$("loginForm").onsubmit = async e => {
+  e.preventDefault();
+  $("loginMsg").textContent = "";
+  const j = await call("/login", { username: $("lUser").value, password: $("lPass").value });
+  $("lPass").value = "";
+  if (!j.ok) { $("loginMsg").textContent = j.message || "Couldn't sign in."; return; }
+  await load();
+};
+
+$("detailsForm").onsubmit = async e => {
+  e.preventDefault();
+  const [, code] = $("dDial").value.split("|");
+  const j = await call("/details", { businessName: $("dBusiness").value, contactName: $("dContact").value, email: $("dEmail").value, phoneCountry: code, phone: $("dPhone").value });
+  $("detailsMsg").className = "msg " + (j.ok ? "good" : "bad"); $("detailsMsg").textContent = j.message || "";
+  if (j.ok) load();
+};
+
+$("passForm").onsubmit = async e => {
+  e.preventDefault();
+  if ($("pNew").value !== $("pNew2").value) { $("passMsg").className = "msg bad"; $("passMsg").textContent = "The new passwords don't match."; return; }
+  const j = await call("/password", { current: $("pOld").value, new: $("pNew").value });
+  $("passMsg").className = "msg " + (j.ok ? "good" : "bad"); $("passMsg").textContent = j.message || "";
+  if (j.ok) ["pOld", "pNew", "pNew2"].forEach(id => $(id).value = "");
+};
+
+$("signOut").onclick = async () => { await call("/logout", {}); show(false); };
+
+load().catch(() => show(false));
+</script>
+</body>
+</html>

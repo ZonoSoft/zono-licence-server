@@ -7,7 +7,7 @@ namespace ZonoLicence;
 
 public sealed record Licence(
     string Id, string KeyHint, string BusinessName, string Email, string Plan, int TeamSeats, DateOnly? Expires,
-    int MaxActivations, string Status, string Notes, DateTime CreatedUtc);
+    int MaxActivations, string Status, string Notes, DateTime CreatedUtc, string? AccountId = null);
 
 public sealed record Activation(
     long Id, string LicenceId, string InstallId, string BusinessName, string DeviceName, string Platform, string AppVersion,
@@ -58,7 +58,18 @@ public sealed class LicenceStore
                 what TEXT NOT NULL,
                 detail TEXT NOT NULL DEFAULT '',
                 ip TEXT NOT NULL DEFAULT '');
+            CREATE INDEX IF NOT EXISTS ix_activations_install ON activations(install_id);
             """);
+        // v2: licences belong to a customer account; the key is also kept encrypted so the customer can see it in the portal
+        AddColumn(c, "licences", "account_id", "TEXT NULL");
+        AddColumn(c, "licences", "key_enc", "TEXT NOT NULL DEFAULT ''");
+    }
+
+    private static void AddColumn(SqliteConnection c, string table, string column, string type)
+    {
+        using var cmd = c.CreateCommand();
+        cmd.CommandText = $"SELECT COUNT(*) FROM pragma_table_info('{table}') WHERE name = '{column}';";
+        if ((long)cmd.ExecuteScalar()! == 0) Exec(c, $"ALTER TABLE {table} ADD COLUMN {column} {type};");
     }
 
     private SqliteConnection Open()
@@ -99,15 +110,16 @@ public sealed class LicenceStore
     // ---------- Licences ----------
 
     /// <summary>Makes a licence. Returns it and its key (shown once; only the hash is kept).</summary>
-    public (Licence Licence, string Key) Create(string businessName, string email, string plan, int teamSeats, DateOnly? expires, int maxActivations, string notes)
+    public (Licence Licence, string Key) Create(string businessName, string email, string plan, int teamSeats, DateOnly? expires, int maxActivations, string notes,
+        string status = "active", string? accountId = null, Secrets? secrets = null)
     {
         var key = NewKey();
         var id = "L" + Convert.ToHexString(RandomNumberGenerator.GetBytes(6));
         using var c = Open();
         using var cmd = c.CreateCommand();
         cmd.CommandText = """
-            INSERT INTO licences(id, key_hash, key_hint, business_name, email, plan, team_seats, expires, max_activations, status, notes, created)
-            VALUES ($i,$h,$k,$b,$e,$p,$s,$x,$m,'active',$n,$c);
+            INSERT INTO licences(id, key_hash, key_hint, business_name, email, plan, team_seats, expires, max_activations, status, notes, created, account_id, key_enc)
+            VALUES ($i,$h,$k,$b,$e,$p,$s,$x,$m,$st,$n,$c,$a,$ke);
             """;
         cmd.Parameters.AddWithValue("$i", id);
         cmd.Parameters.AddWithValue("$h", Hash(key));
@@ -120,6 +132,9 @@ public sealed class LicenceStore
         cmd.Parameters.AddWithValue("$m", maxActivations);
         cmd.Parameters.AddWithValue("$n", notes.Trim());
         cmd.Parameters.AddWithValue("$c", Now());
+        cmd.Parameters.AddWithValue("$st", status);
+        cmd.Parameters.AddWithValue("$a", (object?)accountId ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$ke", secrets?.Protect(key) ?? "");
         cmd.ExecuteNonQuery();
         return (Get(id)!, key);
     }
@@ -127,6 +142,33 @@ public sealed class LicenceStore
     public Licence? Get(string id) => Query("SELECT * FROM licences WHERE id = $v;", id).FirstOrDefault();
     public Licence? FindByKey(string key) => Query("SELECT * FROM licences WHERE key_hash = $v;", Hash(key)).FirstOrDefault();
     public List<Licence> All() => Query("SELECT * FROM licences ORDER BY created DESC;", null);
+    public List<Licence> ForAccount(string accountId) => Query("SELECT * FROM licences WHERE account_id = $v ORDER BY created DESC;", accountId);
+
+    /// <summary>The licence a business (install id) is activated on, if any.</summary>
+    public Licence? ForInstall(string installId) => Query("""
+        SELECT l.* FROM licences l JOIN activations a ON a.licence_id = l.id
+        WHERE a.install_id = $v AND a.released = 0 ORDER BY a.last_seen DESC LIMIT 1;
+        """, installId).FirstOrDefault();
+
+    /// <summary>The licence key, readable (only for licences made since keys were kept encrypted).</summary>
+    public string? KeyOf(string id, Secrets secrets)
+    {
+        using var c = Open();
+        using var cmd = c.CreateCommand();
+        cmd.CommandText = "SELECT key_enc FROM licences WHERE id = $id;";
+        cmd.Parameters.AddWithValue("$id", id);
+        return cmd.ExecuteScalar() is string { Length: > 0 } enc ? secrets.Unprotect(enc) : null;
+    }
+
+    public void SetAccount(string id, string accountId)
+    {
+        using var c = Open();
+        using var cmd = c.CreateCommand();
+        cmd.CommandText = "UPDATE licences SET account_id = $a WHERE id = $id;";
+        cmd.Parameters.AddWithValue("$a", accountId);
+        cmd.Parameters.AddWithValue("$id", id);
+        cmd.ExecuteNonQuery();
+    }
 
     private List<Licence> Query(string sql, string? value)
     {
@@ -141,7 +183,8 @@ public sealed class LicenceStore
                 r.GetString(r.GetOrdinal("email")), r.GetString(r.GetOrdinal("plan")), r.GetInt32(r.GetOrdinal("team_seats")),
                 r.IsDBNull(r.GetOrdinal("expires")) ? null : DateOnly.ParseExact(r.GetString(r.GetOrdinal("expires")), "yyyy-MM-dd", CultureInfo.InvariantCulture),
                 r.GetInt32(r.GetOrdinal("max_activations")), r.GetString(r.GetOrdinal("status")), r.GetString(r.GetOrdinal("notes")),
-                DateTime.Parse(r.GetString(r.GetOrdinal("created")), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind)));
+                DateTime.Parse(r.GetString(r.GetOrdinal("created")), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind),
+                r.IsDBNull(r.GetOrdinal("account_id")) ? null : r.GetString(r.GetOrdinal("account_id"))));
         return list;
     }
 
@@ -172,12 +215,13 @@ public sealed class LicenceStore
     }
 
     /// <summary>A new key for a licence (the old key stops working; activations stay).</summary>
-    public string NewKeyFor(string id)
+    public string NewKeyFor(string id, Secrets? secrets = null)
     {
         var key = NewKey();
         using var c = Open();
         using var cmd = c.CreateCommand();
-        cmd.CommandText = "UPDATE licences SET key_hash = $h, key_hint = $k WHERE id = $id;";
+        cmd.CommandText = "UPDATE licences SET key_hash = $h, key_hint = $k, key_enc = $ke WHERE id = $id;";
+        cmd.Parameters.AddWithValue("$ke", secrets?.Protect(key) ?? "");
         cmd.Parameters.AddWithValue("$h", Hash(key));
         cmd.Parameters.AddWithValue("$k", key[^5..]);
         cmd.Parameters.AddWithValue("$id", id);

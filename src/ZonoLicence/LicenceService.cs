@@ -58,6 +58,11 @@ public sealed class LicenceService(LicenceStore store, TokenSigner signer, TimeP
             store.Log(licence.Id, "activate-failed", "revoked", ip);
             return new(403, null, "revoked", "This licence has been cancelled. Contact ZonoSoft.");
         }
+        if (licence.Status == "pending")
+        {
+            store.Log(licence.Id, "activate-failed", "waiting for payment", ip);
+            return new(402, null, "awaiting_payment", "This licence is waiting for payment. It starts by itself once payment is received.");
+        }
         var business = Clip(r.BusinessName, 80);
         if (!store.Activate(licence, installId, business, Clip(r.DeviceName, 80), Clip(r.Platform, 20), Clip(r.AppVersion, 20)))
         {
@@ -81,6 +86,7 @@ public sealed class LicenceService(LicenceStore store, TokenSigner signer, TimeP
         var iid = (string?)payload["iid"];
         var licence = lid is null ? null : store.Get(lid);
         if (licence is null || iid is null) return new(404, null, "unknown_licence", "This licence no longer exists. Enter a licence key.");
+        if (licence.Status == "pending") return new(402, null, "awaiting_payment", "This licence is waiting for payment.");
         if (!store.IsActive(licence.Id, iid))
             return new(409, null, "released", "This licence was deactivated for this business. Enter the licence key again.");
         var business = (string?)payload["bus"] ?? "";

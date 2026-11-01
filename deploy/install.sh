@@ -41,7 +41,7 @@ fi
 export DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_NOLOGO=1
 
 # The code
-if [ -d "$APP/src/.git" ]; then git -C "$APP/src" pull -q; else rm -rf "$APP/src"; git clone -q "$REPO" "$APP/src"; fi
+if [ -d "$APP/src/.git" ]; then git -C "$APP/src" fetch -q origin main && git -C "$APP/src" reset -q --hard origin/main; else rm -rf "$APP/src"; git clone -q "$REPO" "$APP/src"; fi
 /opt/dotnet/dotnet publish "$APP/src/src/ZonoLicence" -c Release -r linux-x64 --self-contained true -o "$APP/app.new" -v quiet
 rm -rf "$APP/app.old"; [ -d "$APP/app" ] && mv "$APP/app" "$APP/app.old"; mv "$APP/app.new" "$APP/app"
 
@@ -80,12 +80,19 @@ ReadOnlyPaths=$ETC
 WantedBy=multi-user.target
 UNIT
 
+# The customer portal is also served on the main web address once its DNS points here
+SITES="$DOMAIN"
+SERVER_IP=$(hostname -I | awk '{print $1}')
+for d in ${PORTAL_DOMAINS:-zonosoft.co.uk www.zonosoft.co.uk}; do
+  if getent ahostsv4 "$d" | awk '{print $1}' | grep -qx "$SERVER_IP"; then SITES="$SITES, $d"; fi
+done
 cat > /etc/caddy/Caddyfile <<CADDY
-$DOMAIN {
+$SITES {
     encode gzip
     reverse_proxy 127.0.0.1:5080
 }
 CADDY
+echo "== Web addresses: $SITES"
 
 # Daily backup of the licence database (kept 30 days) and the signing key
 cat > /etc/cron.daily/zono-licence-backup <<'BACKUP'
@@ -93,12 +100,48 @@ cat > /etc/cron.daily/zono-licence-backup <<'BACKUP'
 mkdir -p /var/backups/zono-licence
 sqlite3 /var/lib/zono-licence/licences.db ".backup /var/backups/zono-licence/licences-$(date +%F).db"
 cp -n /var/lib/zono-licence/signing-key.pem /var/backups/zono-licence/signing-key.pem 2>/dev/null || true
+cp -n /var/lib/zono-licence/secret.key /var/backups/zono-licence/secret.key 2>/dev/null || true
 chmod 600 /var/backups/zono-licence/*
 find /var/backups/zono-licence -name 'licences-*.db' -mtime +30 -delete
 BACKUP
 chmod 755 /etc/cron.daily/zono-licence-backup
 
+# Updates itself: every 15 minutes, if the code on GitHub has changed (or the web addresses' DNS has), install again
+install -m 0755 /dev/stdin /usr/local/sbin/zono-licence-update <<'UPDATE'
+#!/bin/bash
+set -euo pipefail
+SRC=/opt/zono-licence/src
+git -C "$SRC" fetch -q origin main
+CHANGED=0
+[ "$(git -C "$SRC" rev-parse HEAD)" != "$(git -C "$SRC" rev-parse origin/main)" ] && CHANGED=1
+SERVER_IP=$(hostname -I | awk '{print $1}')
+for d in zonosoft.co.uk www.zonosoft.co.uk; do
+  if getent ahostsv4 "$d" | awk '{print $1}' | grep -qx "$SERVER_IP" && ! grep -q "$d" /etc/caddy/Caddyfile; then CHANGED=1; fi
+done
+if [ "$CHANGED" = 1 ]; then
+  git -C "$SRC" reset -q --hard origin/main
+  bash "$SRC/deploy/install.sh" >> /var/log/zono-licence-update.log 2>&1
+fi
+UPDATE
+cat > /etc/systemd/system/zono-licence-update.service <<'UNIT'
+[Unit]
+Description=Update the Zono licence server from GitHub
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/zono-licence-update
+UNIT
+cat > /etc/systemd/system/zono-licence-update.timer <<'UNIT'
+[Unit]
+Description=Check for Zono licence server updates every 15 minutes
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=15min
+[Install]
+WantedBy=timers.target
+UNIT
+
 systemctl daemon-reload
+systemctl enable -q --now zono-licence-update.timer
 systemctl enable -q zono-licence caddy
 systemctl restart zono-licence
 systemctl reload caddy 2>/dev/null || systemctl restart caddy
@@ -106,7 +149,8 @@ sleep 3
 
 echo
 if curl -fsS http://127.0.0.1:5080/api/v1/health >/dev/null; then echo "== Licence server is running."; else echo "!! The licence server didn't start: journalctl -u zono-licence -n 50"; fi
-echo "== Web address: https://$DOMAIN  (admin page: https://$DOMAIN/admin)"
+echo "== Web address: https://$DOMAIN  (admin page: https://$DOMAIN/admin, customer portal: https://$DOMAIN/portal)"
+echo "== Updates itself from GitHub every 15 minutes (log: /var/log/zono-licence-update.log)"
 echo "== Admin key:   sudo cat $ETC/admin.key"
 echo "== Public key for the apps:"
 curl -fsS http://127.0.0.1:5080/api/v1/public-key || true

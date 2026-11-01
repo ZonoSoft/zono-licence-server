@@ -24,7 +24,7 @@
   th, td { text-align:left; padding:8px 6px; border-bottom:1px solid var(--line); vertical-align:top; }
   th { color:var(--muted); font-size:12px; }
   .pill { display:inline-block; padding:1px 8px; border-radius:99px; font-size:12px; font-weight:700; }
-  .active { background:#dcfce7; color:var(--ok); } .revoked, .expired { background:#fee2e2; color:var(--warn); }
+  .active { background:#dcfce7; color:var(--ok); } .pending { background:#fff7ed; color:var(--warn); } .revoked, .expired { background:#fee2e2; color:var(--warn); }
   .key { font:700 20px/1.3 ui-monospace,Menlo,Consolas,monospace; letter-spacing:1px; background:#fff7ed; border:1px dashed var(--warn); padding:12px; border-radius:8px; word-break:break-all; }
   .muted { color:var(--muted); font-size:13px; }
   .hidden { display:none; }
@@ -74,6 +74,16 @@
     </section>
 
     <section class="card">
+      <details><summary>Machines and free trials</summary>
+        <p class="muted">Every PC or phone that has opened Zono. The 30-day trial counts from the first time a machine is seen, so reinstalling or resetting the app doesn't restart it.</p>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Business</th><th>App</th><th>Trial started</th><th>First seen</th><th>Last seen</th><th>Launches</th><th>Registered</th></tr></thead>
+          <tbody id="machines"></tbody>
+        </table></div>
+      </details>
+    </section>
+
+    <section class="card">
       <details><summary>Activity log</summary><div class="table-wrap"><table><tbody id="events"></tbody></table></div></details>
       <p><button id="backup">Download a backup of the licence database</button></p>
     </section>
@@ -119,16 +129,19 @@ async function load() {
     const status = l.status === "active" && l.expires && new Date(l.expires) < new Date(new Date().toDateString()) ? "expired" : l.status;
     const acts = l.activations.filter(a => !a.released);
     return `<tr>
-      <td><strong>${esc(l.businessName)}</strong><div class="muted">${esc(l.email)} · key …${esc(l.keyHint)} · ${esc(l.id)}</div>${l.notes ? `<div class="muted">${esc(l.notes)}</div>` : ""}</td>
+      <td><strong>${esc(l.businessName)}</strong><div class="muted">${esc(l.email)} · key …${esc(l.keyHint)} · ${esc(l.id)}</div>${l.account ? `<div class="muted">Account <strong>${esc(l.account.username)}</strong> · ${esc(l.account.contactName)} · ${esc(l.account.email)} · ${esc(l.account.phone)}</div>` : ""}${l.notes ? `<div class="muted">${esc(l.notes)}</div>` : ""}</td>
       <td>${esc(l.plan)}</td><td>${l.teamSeats}</td><td>${esc(l.expires || "—")}</td>
       <td><span class="pill ${status}">${status}</span></td>
       <td>${acts.length}/${l.maxActivations}${acts.map(a => `<div class="muted">${esc(a.businessName || a.deviceName)} · ${esc(a.platform)} ${esc(a.appVersion)} · seen ${when(a.lastSeenUtc)} <button data-release="${a.id}">Release</button></div>`).join("")}</td>
       <td style="white-space:nowrap">
+        ${l.status === "pending" ? `<button class="primary" data-paid="${l.id}">Mark paid</button>` : ""}
         <button data-edit="${l.id}">Change</button>
         ${l.status === "revoked" ? `<button data-restore="${l.id}">Restore</button>` : `<button class="danger" data-revoke="${l.id}">Cancel</button>`}
         <button data-newkey="${l.id}">New key</button>
       </td></tr>`;
   }).join("") || `<tr><td colspan="7" class="muted">No licences yet.</td></tr>`;
+  const machines = await api("/machines");
+  $("machines").innerHTML = machines.map(m => `<tr><td>${esc(m.businessName || "—")}</td><td>${esc(m.product)} · ${esc(m.platform)} ${esc(m.appVersion)}</td><td>${esc(m.trialStarted)}</td><td>${when(m.firstSeenUtc)}</td><td>${when(m.lastSeenUtc)}</td><td>${m.launches}</td><td>${m.registered ? "Yes" : ""}</td></tr>`).join("") || `<tr><td colspan="7" class="muted">None yet.</td></tr>`;
   const ev = await api("/events");
   $("events").innerHTML = ev.map(e => `<tr><td class="muted">${when(e.at)}</td><td>${esc(e.what)}</td><td>${esc(e.detail)}</td><td class="muted">${esc(e.licenceId || "")} ${esc(e.ip)}</td></tr>`).join("");
   window.licences = list;
@@ -154,6 +167,12 @@ $("rows").onclick = async e => {
   const b = e.target.closest("button"); if (!b) return;
   if (b.dataset.revoke && confirm("Cancel this licence? The apps go read-only at their next check (within a week).")) await api(`/licences/${b.dataset.revoke}`, { status: "revoked" });
   if (b.dataset.restore) await api(`/licences/${b.dataset.restore}`, { status: "active" });
+  if (b.dataset.paid) {
+    const l = window.licences.find(x => x.id === b.dataset.paid);
+    const next = new Date(); if (l.plan === "yearly") next.setFullYear(next.getFullYear() + 1); else next.setMonth(next.getMonth() + 1);
+    const until = prompt("Payment received. Paid until (YYYY-MM-DD)", next.toISOString().slice(0, 10)); if (until === null) return;
+    await api(`/licences/${l.id}`, { status: "active", expires: until.trim() });
+  }
   if (b.dataset.release && confirm("Release this activation? The key can then be used on another business or PC.")) await api(`/activations/${b.dataset.release}/release`, {});
   if (b.dataset.newkey && confirm("Make a new key? The old key stops working for new activations (current ones keep working).")) {
     const j = await api(`/licences/${b.dataset.newkey}/new-key`, {});
