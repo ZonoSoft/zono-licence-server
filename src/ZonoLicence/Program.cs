@@ -134,6 +134,17 @@ portal.MapPost("/login", (LoginRequest r, CustomerService svc, CustomerStore sto
     return Results.Json(new { ok = true });
 }).RequireRateLimiting("login");
 
+portal.MapPost("/register", (WebRegisterRequest r, CustomerService svc, CustomerStore store, HttpContext c) =>
+{
+    var (status, body, accountId) = svc.WebRegister(r, Ip(c));
+    if (accountId is not null)
+        c.Response.Cookies.Append(CookieName(c), store.StartSession(accountId), new CookieOptions
+        {
+            HttpOnly = true, Secure = c.Request.IsHttps, SameSite = SameSiteMode.Strict, Path = "/", MaxAge = TimeSpan.FromHours(12)
+        });
+    return Results.Json(body, statusCode: status);
+}).RequireRateLimiting("register");
+
 portal.MapPost("/logout", (CustomerStore store, HttpContext c) =>
 {
     store.EndSession(SessionToken(c));

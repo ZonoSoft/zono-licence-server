@@ -63,3 +63,47 @@
       });
   }
 })();
+
+// Create account (website): makes the ZonoSoft account and signs in to it
+(() => {
+  const form = document.getElementById("register");
+  if (!form) return;
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  $("rDial").innerHTML = (window.ZONO_COUNTRIES || []).map(([name, iso, code]) =>
+    `<option value="${esc(code)}"${iso === "GB" ? " selected" : ""}>${esc(name)} (${esc(code)})</option>`).join("");
+  let userTouched = false;
+  $("rUser").addEventListener("input", () => { userTouched = true; });
+  $("rEmail").addEventListener("input", () => { if (!userTouched) $("rUser").value = $("rEmail").value.trim(); });
+
+  const fail = (message, field) => {
+    $("rError").textContent = message; $("rError").hidden = false;
+    form.querySelectorAll("[aria-invalid]").forEach(el => el.removeAttribute("aria-invalid"));
+    if (field) { field.setAttribute("aria-invalid", "true"); field.focus(); }
+  };
+  form.addEventListener("submit", async e => {
+    e.preventDefault();
+    $("rError").hidden = true;
+    const required = [["rBusiness", "Enter the business name."], ["rContact", "Enter your name."], ["rEmail", "Enter your email address."],
+                      ["rPhone", "Enter your phone number."], ["rUser", "Choose a username."], ["rPass", "Choose a password."]];
+    for (const [id, msg] of required) if (!$(id).value.trim()) return fail(msg, $(id));
+    if ($("rPass").value.length < 10) return fail("The password needs at least 10 characters.", $("rPass"));
+    if ($("rPass").value !== $("rPass2").value) return fail("The two passwords don't match.", $("rPass2"));
+    if (!$("rTerms").checked) return fail("Please agree to the terms and privacy notice.", $("rTerms"));
+    $("rGo").disabled = true; $("rGo").textContent = "Creating your account…";
+    try {
+      const r = await fetch("/api/portal/register", {
+        method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ businessName: $("rBusiness").value, contactName: $("rContact").value, email: $("rEmail").value,
+          phoneCountry: $("rDial").value, phone: $("rPhone").value, username: $("rUser").value, password: $("rPass").value, acceptTerms: true })
+      });
+      let j = {}; try { j = await r.json(); } catch {}
+      if (r.ok && j.ok) { location.href = "/portal"; return; }
+      fail(r.status === 429 ? "Too many tries. Wait a minute and try again." : (j.message || "The account couldn't be created. Try again."));
+    } catch {
+      fail("Couldn't reach ZonoSoft. Check your internet connection and try again.");
+    } finally {
+      $("rGo").disabled = false; $("rGo").textContent = "Create account";
+    }
+  });
+})();

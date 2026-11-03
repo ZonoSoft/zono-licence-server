@@ -3,17 +3,22 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>ZonoSoft customer portal</title>
+<title>Your account | ZonoSoft</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <style>
-  :root { --bg:#f3f4f1; --card:#fff; --ink:#1d2321; --muted:#5d6763; --line:#d9ddd8; --accent:#0d6660; --accent-soft:#dcebe8; --warn:#9a3412; --warn-soft:#fff1e6; --ok:#166534; --ok-soft:#dcfce7; }
+  @font-face { font-family: "Archivo"; font-display: swap; font-weight: 100 900; font-stretch: 62% 125%; src: url(/fonts/archivo-latin-wdth-normal.woff2) format("woff2-variations"); }
+  @font-face { font-family: "Atkinson Hyperlegible"; font-display: swap; font-weight: 400; src: url(/fonts/atkinson-hyperlegible-latin-400-normal.woff2) format("woff2"); }
+  @font-face { font-family: "Atkinson Hyperlegible"; font-display: swap; font-weight: 700; src: url(/fonts/atkinson-hyperlegible-latin-700-normal.woff2) format("woff2"); }
+  :root { --bg:#e9eeeb; --card:#fff; --ink:#1d2321; --muted:#5d6763; --line:#d9ddd8; --accent:#0d6660; --accent-soft:#dcebe8; --warn:#9a3412; --warn-soft:#fff1e6; --ok:#166534; --ok-soft:#dcfce7; }
   * { box-sizing:border-box; }
-  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.5 "Atkinson Hyperlegible",system-ui,-apple-system,"Segoe UI",sans-serif; }
   header { background:var(--accent); color:#fff; }
   .bar { max-width:960px; margin:0 auto; padding:14px 16px; display:flex; justify-content:space-between; align-items:center; gap:12px; }
   .brand { display:flex; align-items:center; gap:10px; font-weight:800; font-size:18px; }
   .brand svg { width:30px; height:30px; }
   main { max-width:960px; margin:0 auto; padding:24px 16px 64px; }
-  h1 { font-size:26px; margin:0 0 4px; }
+  h1, h2, .brand { font-family:"Archivo",system-ui,sans-serif; font-stretch:112%; }
+  h1 { font-size:28px; font-weight:800; margin:0 0 4px; }
   h2 { font-size:18px; margin:0 0 12px; }
   .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:20px; margin-bottom:18px; }
   .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:14px; }
@@ -42,10 +47,10 @@
 <body>
 <header>
   <div class="bar">
-    <div class="brand">
+    <a class="brand" href="/" style="color:#fff;text-decoration:none">
       <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5,5 H19 A2,2 0 0 1 21,7 V19 A2,2 0 0 1 19,21 H5 A2,2 0 0 1 3,19 V7 A2,2 0 0 1 5,5 Z M3,10 H21 M8,3 V7 M16,3 V7"/></svg>
       ZonoSoft
-    </div>
+    </a>
     <button id="signOut" class="hidden">Sign out</button>
   </div>
 </header>
@@ -63,7 +68,7 @@
       <p><button class="primary" type="submit">Sign in</button></p>
       <div id="loginMsg" class="msg bad" role="alert"></div>
     </form>
-    <p class="muted">No account yet? Register from the app: Zono Workforce → Settings → Licence.</p>
+    <p class="muted">No account yet? <a href="/account/register">Create a ZonoSoft account</a>.</p>
   </section>
 
   <!-- Signed in -->
@@ -170,7 +175,12 @@ async function load() {
     </dl>
     ${l.status === "pending" ? `<p class="note">Your licence starts as soon as your payment is received. The app picks it up by itself — there's nothing to type in. Until then your free trial carries on.</p>` : ""}
     ${!l.key ? `<p class="muted">The full key isn't shown for licences made before the portal opened. Contact us for a new key if you need it.</p>` : ""}
-  `).join("<hr>") : `<p class="muted">No licence yet.</p>`;
+  `).join("<hr>") : `<p><strong>No licence yet.</strong></p>
+    <ol class="muted" style="padding-left:1.2em">
+      <li><a href="/workforce/download">Download Zono Workforce</a> and use it free for 30 days.</li>
+      <li>In the app, go to Settings, then Licence, then Buy a licence.</li>
+      <li>Use this account's username and password there. The licence is added to this account.</li>
+    </ol>`;
 
   const due = me.licences.find(l => l.status === "pending" || l.status === "expired") || me.licences[0];
   $("payment").innerHTML = due && due.price

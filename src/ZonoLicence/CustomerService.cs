@@ -12,6 +12,8 @@ public sealed record RegisterRequest(
     string? Plan, int? TeamSeats);
 
 public sealed record LoginRequest(string? Username, string? Password);
+public sealed record WebRegisterRequest(string? BusinessName, string? ContactName, string? Email, string? PhoneCountry, string? Phone,
+    string? Username, string? Password, bool? AcceptTerms);
 public sealed record DetailsRequest(string? BusinessName, string? ContactName, string? Email, string? PhoneCountry, string? Phone);
 public sealed record PasswordRequest(string? Current, string? New);
 
@@ -122,10 +124,21 @@ public sealed partial class CustomerService(CustomerStore customers, LicenceStor
             return (409, new { ok = false, error = "already_registered", message = $"This business is already registered as \"{already.Username}\". Sign in at zonosoft.co.uk/portal." });
         if (licences.ForInstall(installId) is { Status: not "revoked" })
             return (409, new { ok = false, error = "already_licensed", message = "This business already has a licence." });
-        if (customers.UsernameTaken(username))
-            return (409, new { ok = false, error = "username_taken", message = "That username is already used. Choose another, or sign in at zonosoft.co.uk/portal." });
-
-        var account = customers.CreateAccount(username, password, business, contact, email, dial, new string(phone.Where(char.IsAsciiDigit).ToArray()));
+        // An existing ZonoSoft account (e.g. made on the website): the right password adds this business to it
+        Account account;
+        if (customers.FindByUsername(username) is { } known)
+        {
+            if (known.LockedUntilUtc is { } until && until > DateTime.UtcNow)
+                return (429, new { ok = false, error = "locked", message = "Too many wrong passwords for that account. Try again in 15 minutes." });
+            var right = Secrets.CheckPassword(password, known.PasswordHash);
+            customers.LoginResult(known.Id, right);
+            if (!right)
+                return (409, new { ok = false, error = "username_taken",
+                    message = "That username already has a ZonoSoft account. If it's yours, enter its password to add this business to it; otherwise choose another username." });
+            account = known;
+        }
+        else
+            account = customers.CreateAccount(username, password, business, contact, email, dial, new string(phone.Where(char.IsAsciiDigit).ToArray()));
         var (licence, _) = licences.Create(business, "", plan, seats, null, 1, "Registered from the app", status: "pending", accountId: account.Id, secrets: secrets);
         licences.Activate(licence, installId, business, Clip(r.DeviceName, 80), m.Platform, m.AppVersion);
         customers.LinkMachine(m.Id, account.Id);
@@ -139,6 +152,28 @@ public sealed partial class CustomerService(CustomerStore customers, LicenceStor
                       "at zonosoft.co.uk/portal with your username and password.",
             username
         });
+    }
+
+    /// <summary>From the website: a ZonoSoft account without a licence yet (the app's "Buy a licence" adds one to it).</summary>
+    public (int Status, object Body, string? AccountId) WebRegister(WebRegisterRequest r, string ip)
+    {
+        var business = Clip(r.BusinessName, 80);
+        var contact = Clip(r.ContactName, 80);
+        var email = Clip(r.Email, 120);
+        var dial = Clip(r.PhoneCountry, 10);
+        var phone = Clip(r.Phone, 30);
+        var username = Clip(r.Username, 120);
+        var password = r.Password ?? "";
+        if (r.AcceptTerms != true) return (400, new { ok = false, message = "Please agree to the terms and privacy notice." }, null);
+        if (CheckDetails(business, contact, email, dial, phone) is { } problem) return (400, new { ok = false, message = problem }, null);
+        if (username.Length < 3 || username.Any(char.IsWhiteSpace))
+            return (400, new { ok = false, message = "Choose a username of at least 3 characters, without spaces (your email address works)." }, null);
+        if (CheckPassword(username, password) is { } weak) return (400, new { ok = false, message = weak }, null);
+        if (customers.UsernameTaken(username))
+            return (409, new { ok = false, message = "That username already has an account. Sign in instead, or choose another username." }, null);
+        var account = customers.CreateAccount(username, password, business, contact, email, dial, new string(phone.Where(char.IsAsciiDigit).ToArray()));
+        licences.Log(null, "account created", account.Id + " (website)", ip);
+        return (200, new { ok = true }, account.Id);
     }
 
     // ---------- Portal ----------
