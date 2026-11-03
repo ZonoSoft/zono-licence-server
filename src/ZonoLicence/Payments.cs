@@ -157,9 +157,19 @@ public sealed class Payments
         if (!(key.StartsWith("sk_", StringComparison.Ordinal) || key.StartsWith("rk_", StringComparison.Ordinal)) || key.Length < 20 || key.Any(char.IsWhiteSpace))
             return "That doesn't look like a Stripe secret key. It starts with sk_test_ or sk_live_ (or rk_ for a restricted key).";
         var account = await CallAsync(key, HttpMethod.Get, "/v1/account", null, cancel);
-        if (account.Error is { } e) return "Stripe didn't accept the key: " + e;
-        var root = account.Json!.RootElement;
-        var name = Str(root, "settings", "dashboard", "display_name") ?? Str(root, "business_profile", "name") ?? Str(root, "email") ?? Str(root, "id") ?? "Stripe account";
+        string name;
+        if (account.Error is { } e)
+        {
+            // A restricted key may not be allowed to read the account's details; setting up the webhook below
+            // still proves the key works
+            if (!key.StartsWith("rk_", StringComparison.Ordinal)) return "Stripe didn't accept the key: " + e;
+            name = "Stripe account (restricted key)";
+        }
+        else
+        {
+            var root = account.Json!.RootElement;
+            name = Str(root, "settings", "dashboard", "display_name") ?? Str(root, "business_profile", "name") ?? Str(root, "email") ?? Str(root, "id") ?? "Stripe account";
+        }
         var live = key.Contains("_live_", StringComparison.Ordinal);
 
         // Replace the webhook this server made before (if any)
@@ -174,8 +184,10 @@ public sealed class Payments
         var hook = await CallAsync(key, HttpMethod.Post, "/v1/webhook_endpoints", form, cancel);
         if (hook.Error is { } he)
         {
+            if (account.Error is not null) return "Stripe didn't accept the key: " + he;
             Save(new Config(key, null, null, name, live));
-            return "The key works, but the webhook couldn't be set up: " + he;
+            return "The key works, but the webhook couldn't be set up: " + he +
+                   (key.StartsWith("rk_", StringComparison.Ordinal) ? " (give the restricted key Webhook Endpoints: Write)" : "");
         }
         Save(new Config(key, Str(hook.Json!.RootElement, "id"), Str(hook.Json.RootElement, "secret"), name, live));
         return null;
