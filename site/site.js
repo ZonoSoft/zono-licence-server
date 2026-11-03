@@ -55,7 +55,7 @@
             <td><strong>${app(f.product)}</strong><br>${esc(f.platform)}</td>
             <td>${who(f.product)}<div class="hash">SHA-256: ${esc(f.sha256)}</div></td>
             <td>${esc(f.version)}<div class="small">${day(f.uploadedUtc)}</div></td>
-            <td><a class="btn small-btn" href="${esc(f.url)}" download>Download ${f.platform === "Android" ? ".apk" : ".zip"} (${mb(f.bytes)})</a></td>
+            <td><a class="btn small-btn" href="${esc(f.url)}" download>${/\.exe$|\.msi$/i.test(f.name) ? "Download installer" : "Download ." + f.name.split(".").pop()} (${mb(f.bytes)})</a></td>
           </tr>`).join("")}</tbody></table>`;
       })
       .catch(() => {

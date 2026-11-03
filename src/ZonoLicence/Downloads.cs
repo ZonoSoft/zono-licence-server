@@ -47,9 +47,19 @@ public sealed partial class Downloads(string folder)
         return list.OrderByDescending(f => Version.Parse(f.Version)).ThenBy(f => f.Name, StringComparer.Ordinal).ToList();
     }
 
-    /// <summary>The newest file for each app and platform.</summary>
+    /// <summary>Which kind of file to offer first: an installer, then an app package, then a zip.</summary>
+    private static int Preference(string name) => Path.GetExtension(name).ToLowerInvariant() switch
+    {
+        ".exe" or ".msi" => 0,
+        ".apk" or ".ipa" or ".dmg" => 1,
+        _ => 2
+    };
+
+    /// <summary>The newest file for each app and platform (the installer when there is one).</summary>
     public List<DownloadFile> Latest() =>
-        All().GroupBy(f => (f.Product, f.Platform)).Select(g => g.First()).OrderBy(f => f.Product).ThenBy(f => f.Platform).ToList();
+        All().GroupBy(f => (f.Product, f.Platform))
+            .Select(g => g.OrderByDescending(f => Version.Parse(f.Version)).ThenBy(f => Preference(f.Name)).First())
+            .OrderBy(f => f.Product).ThenBy(f => f.Platform).ToList();
 
     /// <summary>Saves an upload (written to a temporary file first, so a broken upload never replaces a good file).</summary>
     public async Task<DownloadFile> SaveAsync(string name, Stream body, CancellationToken cancel)
