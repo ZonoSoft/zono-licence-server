@@ -42,6 +42,10 @@
   .note { background:var(--warn-soft); border-radius:10px; padding:12px 14px; }
   .hidden { display:none !important; }
   .narrow { max-width:420px; margin:40px auto; }
+  .tabs { display:flex; gap:6px; flex-wrap:wrap; margin:18px 0 16px; border-bottom:1px solid var(--line); }
+  .tabs button { border:0; border-bottom:3px solid transparent; border-radius:0; background:none; padding:10px 14px; color:var(--muted); }
+  .tabs button[aria-selected="true"] { color:var(--accent); border-bottom-color:var(--accent); }
+  .tabs button:focus-visible { outline:2px solid var(--accent); outline-offset:-2px; }
   @media (max-width:520px) { .phone { grid-template-columns:1fr; } dl { grid-template-columns:1fr; } dt { margin-top:6px; } }
 </style>
 </head>
@@ -76,24 +80,38 @@
   <div id="homeView" class="hidden">
     <h1 id="hello">Your account</h1>
     <p class="muted" id="since"></p>
+    <nav class="tabs" role="tablist" aria-label="Your account">
+      <button type="button" role="tab" id="tab-licences" aria-controls="panel-licences" data-tab="licences">Licences</button>
+      <button type="button" role="tab" id="tab-payments" aria-controls="panel-payments" data-tab="payments">Payments</button>
+      <button type="button" role="tab" id="tab-downloads" aria-controls="panel-downloads" data-tab="downloads">Downloads</button>
+      <button type="button" role="tab" id="tab-account" aria-controls="panel-account" data-tab="account">Account details</button>
+    </nav>
     <p id="flash" class="note hidden" role="status"></p>
 
+    <div role="tabpanel" id="panel-licences" aria-labelledby="tab-licences">
     <section class="card">
-      <h2>Licence</h2>
+      <h2>Your licences</h2>
       <div id="licences"></div>
     </section>
+    </div>
 
+    <div role="tabpanel" id="panel-downloads" aria-labelledby="tab-downloads">
     <section class="card">
       <h2>Download the apps</h2>
       <p class="muted">Installers for Windows and Android for Zono Workforce and Zono Team.</p>
       <p><a class="button" href="/workforce/download">Go to downloads</a></p>
     </section>
 
+    </div>
+
+    <div role="tabpanel" id="panel-payments" aria-labelledby="tab-payments">
     <section class="card">
-      <h2>Payment</h2>
+      <h2>Payments</h2>
       <div id="payment"></div>
     </section>
+    </div>
 
+    <div role="tabpanel" id="panel-account" aria-labelledby="tab-account">
     <section class="card">
       <h2>Contact details</h2>
       <form id="detailsForm">
@@ -127,6 +145,7 @@
         <div id="passMsg" class="msg" role="status"></div>
       </form>
     </section>
+    </div>
   </div>
 </main>
 
@@ -156,6 +175,28 @@ async function call(path, body) {
   if (r.status === 429) return { ok: false, message: "Too many tries. Wait a minute and try again." };
   return j;
 }
+
+// Tabs: Licences, Payments, Downloads, Account details (the address remembers which, e.g. /portal#payments)
+const TABS = ["licences", "payments", "downloads", "account"];
+function openTab(name, focus) {
+  if (!TABS.includes(name)) name = "licences";
+  for (const t of TABS) {
+    const on = t === name, tab = $("tab-" + t);
+    tab.setAttribute("aria-selected", on); tab.tabIndex = on ? 0 : -1;
+    $("panel-" + t).classList.toggle("hidden", !on);
+  }
+  if (focus) $("tab-" + name).focus();
+  if (location.hash.slice(1) !== name) history.replaceState(null, "", "/portal" + (name === "licences" ? "" : "#" + name));
+}
+document.querySelector(".tabs").onclick = e => { const b = e.target.closest("button[data-tab]"); if (b) openTab(b.dataset.tab); };
+document.querySelector(".tabs").onkeydown = e => {
+  const i = TABS.indexOf(document.activeElement?.dataset?.tab);
+  if (i < 0) return;
+  const to = e.key === "ArrowRight" ? (i + 1) % TABS.length : e.key === "ArrowLeft" ? (i + TABS.length - 1) % TABS.length
+    : e.key === "Home" ? 0 : e.key === "End" ? TABS.length - 1 : -1;
+  if (to >= 0) { e.preventDefault(); openTab(TABS[to], true); }
+};
+openTab(location.hash.slice(1));
 
 function show(signedIn) {
   $("loginView").classList.toggle("hidden", signedIn);
@@ -254,6 +295,7 @@ async function pay(body) {
   const q = new URLSearchParams(location.search);
   if (!q.has("paid") && !q.has("cancelled")) return;
   history.replaceState(null, "", "/portal");
+  openTab("licences");
   if (q.has("cancelled")) { flash("Payment cancelled. Nothing was taken."); return; }
   flash("Thank you! Your payment is being confirmed…");
   for (let i = 0; i < 15; i++) {
