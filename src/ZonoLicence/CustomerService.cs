@@ -16,12 +16,14 @@ public sealed record WebRegisterRequest(string? BusinessName, string? ContactNam
     string? Username, string? Password, bool? AcceptTerms);
 public sealed record DetailsRequest(string? BusinessName, string? ContactName, string? Email, string? PhoneCountry, string? Phone);
 public sealed record PasswordRequest(string? Current, string? New);
+public sealed record BuyRequest(string? LicenceId, string? Plan, int? TeamSeats);
+public sealed record StripeKeyRequest(string? SecretKey);
 
 /// <summary>
 /// The free trial (counted per machine from the first time it's seen, so reinstalling or resetting the app doesn't restart
 /// it), registering for a licence from the app, and the customer portal.
 /// </summary>
-public sealed partial class CustomerService(CustomerStore customers, LicenceStore licences, LicenceService licensing, Secrets secrets)
+public sealed partial class CustomerService(CustomerStore customers, LicenceStore licences, LicenceService licensing, Secrets secrets, Payments payments)
 {
     public const int TrialDays = 30;
     public const int IncludedTeamMembers = 5;
@@ -148,8 +150,8 @@ public sealed partial class CustomerService(CustomerStore customers, LicenceStor
         {
             ok = true,
             message = $"Registered. Your licence ({plan}, {seats} team members, £{price}{(plan == "yearly" ? " a year" : " a month")}) " +
-                      "starts as soon as payment is received — the app picks it up by itself. You can see your licence key and details " +
-                      "at zonosoft.co.uk/portal with your username and password.",
+                      "starts as soon as you've paid — the app picks it up by itself. Pay by card or PayPal at zonosoft.co.uk/portal " +
+                      "(sign in with your username and password); your licence key appears there once paid.",
             username
         });
     }
@@ -204,10 +206,14 @@ public sealed partial class CustomerService(CustomerStore customers, LicenceStor
             ok = true,
             a.Username, a.BusinessName, a.ContactName, a.Email, a.PhoneCountry, a.Phone,
             created = a.CreatedUtc,
+            payOnline = payments.Enabled,
+            manageBilling = payments.Enabled && payments.HasCustomer(accountId),
             licences = licences.ForAccount(accountId).Select(l => new
             {
                 l.Id,
-                key = licences.KeyOf(l.Id, secrets),
+                // The key is shown once the licence has been paid for
+                key = l.Status == "pending" ? null : licences.KeyOf(l.Id, secrets),
+                subscription = payments.HasSubscription(l.Id),
                 l.KeyHint,
                 l.Plan,
                 l.TeamSeats,
@@ -217,6 +223,36 @@ public sealed partial class CustomerService(CustomerStore customers, LicenceStor
                 usedOn = licences.Activations(l.Id, includeReleased: false).Select(x => new { x.BusinessName, x.DeviceName, x.Platform, x.AppVersion, x.LastSeenUtc })
             })
         };
+    }
+
+    /// <summary>
+    /// A licence to pay for from the website: the account's unpaid one (with the chosen plan and team members), or a new
+    /// one. The customer enters its key in Zono Workforce (Settings → Licence) once it's paid.
+    /// </summary>
+    public (Licence? Licence, string? Problem) LicenceToPay(string accountId, BuyRequest r)
+    {
+        var account = customers.GetAccount(accountId)!;
+        var mine = licences.ForAccount(accountId);
+        if (r.LicenceId is { Length: > 0 } id)
+        {
+            var chosen = mine.FirstOrDefault(l => l.Id == id);
+            if (chosen is null) return (null, "That licence isn't on your account.");
+            if (chosen.Status == "revoked") return (null, "That licence was cancelled. Email ZonoSoft@outlook.com.");
+            if (payments.HasSubscription(chosen.Id) && chosen.Status == "active" && chosen.Expires is { } e && e >= DateOnly.FromDateTime(DateTime.UtcNow))
+                return (null, "This licence is already paid by card. Use \"Manage payments\" to change the card or see invoices.");
+            return (chosen, null);
+        }
+        var plan = r.Plan is "yearly" ? "yearly" : "monthly";
+        var seats = Math.Clamp(r.TeamSeats ?? IncludedTeamMembers, IncludedTeamMembers, 10000);
+        if (mine.FirstOrDefault(l => l.Status == "pending") is { } unpaid)
+        {
+            licences.Update(unpaid.Id, null, null, plan, seats, null, false, null, null, null);
+            return (licences.Get(unpaid.Id), null);
+        }
+        var (licence, _) = licences.Create(account.BusinessName, account.Email, plan, seats, null, 1, "Bought on the website",
+            status: "pending", accountId: accountId, secrets: secrets);
+        licences.Log(licence.Id, "registered", $"{account.BusinessName} · {plan} · {seats} team members · account {accountId} (website)", "");
+        return (licence, null);
     }
 
     public string? UpdateDetails(string accountId, DetailsRequest r)

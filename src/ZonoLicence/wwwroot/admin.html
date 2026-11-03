@@ -47,6 +47,16 @@
 
   <div id="app" class="hidden">
     <section class="card">
+      <h2>Card and PayPal payments (Stripe)</h2>
+      <div id="payStatus" class="muted">Checking…</div>
+      <details id="payConnect"><summary>Connect a Stripe account</summary>
+        <p class="muted">In the Stripe Dashboard: Developers, then API keys. Copy the <strong>Secret key</strong> (sk_test_… while testing, sk_live_… to take real payments) and paste it here. It's checked with Stripe, stored encrypted on this server, and never shown again. This also sets up the webhook that tells this server about payments.</p>
+        <input id="stripeKey" type="password" autocomplete="off" spellcheck="false" placeholder="sk_test_…">
+        <p><button class="primary" id="stripeSave">Connect</button> <span id="stripeMsg" class="muted"></span></p>
+      </details>
+    </section>
+
+    <section class="card">
       <h2>New licence</h2>
       <div class="row">
         <div><label>Business name</label><input id="nBusiness" maxlength="80"></div>
@@ -134,7 +144,34 @@ async function open() {
   $("login").classList.add("hidden"); $("app").classList.remove("hidden"); $("logout").classList.remove("hidden");
 }
 
+async function loadPayments() {
+  const p = await api("/payments");
+  $("payStatus").innerHTML = p.connected
+    ? `<span class="pill ${p.liveMode ? "active" : "pending"}">${p.liveMode ? "Live" : "Test mode"}</span> Connected to <strong>${esc(p.account)}</strong>. Customers can pay in the portal; paid licences are marked paid by themselves.
+       <div class="muted">Webhook: ${esc(p.webhookUrl)}</div>
+       <p><button id="stripeOff" class="danger">Disconnect</button></p>`
+    : p.account
+      ? `Key saved for <strong>${esc(p.account)}</strong>, but ${esc(p.problem || "it isn't working")}. Connect again below.`
+      : `Not connected. Until it is, customers are asked to email to pay, and you press <strong>Mark paid</strong>.`;
+  $("payConnect").open = !p.connected;
+  if ($("stripeOff")) $("stripeOff").onclick = async () => {
+    if (!confirm("Disconnect Stripe? Customers won't be able to pay online until you connect again. Existing subscriptions carry on in Stripe.")) return;
+    await api("/payments/disconnect", {}); loadPayments();
+  };
+}
+$("stripeSave").onclick = async () => {
+  const secretKey = $("stripeKey").value.trim();
+  if (!secretKey) return;
+  $("stripeMsg").textContent = "Checking with Stripe…";
+  const r = await fetch("/api/admin/payments", { method: "POST", headers: { "Authorization": "Bearer " + key, "Content-Type": "application/json" }, body: JSON.stringify({ secretKey }) });
+  const j = await r.json().catch(() => ({}));
+  $("stripeKey").value = "";
+  $("stripeMsg").textContent = j.ok ? "Connected." : (j.message || "That didn't work.");
+  loadPayments();
+};
+
 async function load() {
+  loadPayments().catch(() => {});
   const list = await api("/licences");
   $("rows").innerHTML = list.map(l => {
     const status = l.status === "active" && l.expires && new Date(l.expires) < new Date(new Date().toDateString()) ? "expired" : l.status;

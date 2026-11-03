@@ -21,6 +21,8 @@ builder.Services.AddSingleton(_ => new TokenSigner(Path.Combine(dataDir, "signin
 builder.Services.AddSingleton<LicenceService>();
 builder.Services.AddSingleton(_ => new Secrets(Path.Combine(dataDir, "secret.key")));
 builder.Services.AddSingleton(sp => new CustomerStore(Path.Combine(dataDir, "licences.db"), sp.GetRequiredService<Secrets>()));
+builder.Services.AddSingleton(sp => new Payments(dataDir, Path.Combine(dataDir, "licences.db"), sp.GetRequiredService<Secrets>(),
+    sp.GetRequiredService<LicenceStore>(), sp.GetRequiredService<CustomerStore>()));
 builder.Services.AddSingleton<CustomerService>();
 builder.Services.AddSingleton(_ => new Downloads(Path.Combine(dataDir, "downloads")));
 builder.Services.Configure<ForwardedHeadersOptions>(o =>
@@ -238,6 +240,30 @@ mine.MapPost("/password", (PasswordRequest r, CustomerService svc, CustomerStore
     return Results.Json(new { ok = true, message = "Password changed." });
 });
 
+// Paying online (Stripe's checkout page: card, PayPal, Apple Pay / Google Pay as turned on in Stripe)
+mine.MapPost("/checkout", async (BuyRequest r, CustomerService svc, CustomerStore store, Payments pay, HttpContext c) =>
+{
+    var id = (string)c.Items["account"]!;
+    var (licence, problem) = svc.LicenceToPay(id, r);
+    if (licence is null) return Results.Json(new { ok = false, message = problem }, statusCode: 400);
+    var (url, payProblem) = await pay.CheckoutAsync(licence, store.GetAccount(id)!, c.RequestAborted);
+    return url is null ? Results.Json(new { ok = false, message = payProblem }, statusCode: 400) : Results.Json(new { ok = true, url });
+});
+mine.MapPost("/billing", async (Payments pay, HttpContext c) =>
+{
+    var (url, problem) = await pay.BillingPortalAsync((string)c.Items["account"]!, c.RequestAborted);
+    return url is null ? Results.Json(new { ok = false, message = problem }, statusCode: 400) : Results.Json(new { ok = true, url });
+});
+
+// Stripe tells us about payments (signed; see Payments.SignatureValid)
+app.MapPost("/api/stripe/webhook", async (HttpContext c, Payments pay) =>
+{
+    using var reader = new StreamReader(c.Request.Body);
+    var body = await reader.ReadToEndAsync(c.RequestAborted);
+    if (body.Length > 512 * 1024) return Results.StatusCode(413);
+    return Results.StatusCode(await pay.HandleWebhookAsync(body, c.Request.Headers["Stripe-Signature"].ToString(), Ip(c), c.RequestAborted));
+});
+
 // ---------- Admin (ZonoSoft only) ----------
 
 app.MapGet("/admin", () => Results.Content(Page("admin.html"), "text/html; charset=utf-8"));
@@ -301,6 +327,20 @@ admin.MapPost("/activations/{id:long}/release", (long id, LicenceStore s, HttpCo
 {
     s.ReleaseById(id);
     s.Log(null, "released", "activation " + id, Ip(c));
+    return Results.Json(new { ok = true });
+});
+
+admin.MapGet("/payments", (Payments pay) => Results.Json(pay.Status()));
+admin.MapPost("/payments", async (StripeKeyRequest r, Payments pay, LicenceStore s, HttpContext c) =>
+{
+    var problem = await pay.ConnectAsync(r.SecretKey, c.RequestAborted);
+    s.Log(null, problem is null ? "stripe connected" : "stripe connect failed", problem ?? "", Ip(c));
+    return problem is null ? Results.Json(new { ok = true, status = pay.Status() }) : Results.Json(new { ok = false, message = problem, status = pay.Status() }, statusCode: 400);
+});
+admin.MapPost("/payments/disconnect", async (Payments pay, LicenceStore s, HttpContext c) =>
+{
+    await pay.DisconnectAsync(c.RequestAborted);
+    s.Log(null, "stripe disconnected", "", Ip(c));
     return Results.Json(new { ok = true });
 });
 

@@ -76,6 +76,7 @@
   <div id="homeView" class="hidden">
     <h1 id="hello">Your account</h1>
     <p class="muted" id="since"></p>
+    <p id="flash" class="note hidden" role="status"></p>
 
     <section class="card">
       <h2>Licence</h2>
@@ -172,32 +173,102 @@ async function load() {
   $("dBusiness").value = me.businessName; $("dContact").value = me.contactName; $("dEmail").value = me.email; $("dPhone").value = me.phone;
   setDial(me.phoneCountry);
 
+  const payable = l => me.payOnline && (l.status === "pending" || l.status === "expired");
+  const payButton = l => payable(l)
+    ? `<p><button class="primary" type="button" data-pay="${esc(l.id)}">Pay ${money(l.price)} by card or PayPal</button></p>` : "";
   $("licences").innerHTML = me.licences.length ? me.licences.map(l => `
-    <div class="key"><span>${l.key ? esc(l.key) : "ZONO-…-" + esc(l.keyHint)}</span>${l.key ? `<button type="button" data-copy="${esc(l.key)}">Copy</button>` : ""}</div>
+    ${l.key
+      ? `<div class="key"><span>${esc(l.key)}</span><button type="button" data-copy="${esc(l.key)}">Copy</button></div>`
+      : l.status === "pending"
+        ? `<div class="key"><span style="font:600 16px/1.4 inherit;letter-spacing:0">Your licence key appears here as soon as you've paid.</span></div>`
+        : `<div class="key"><span>ZONO-…-${esc(l.keyHint)}</span></div>`}
     <dl>
       <dt>Status</dt><dd><span class="pill ${esc(l.status)}">${esc(statusName(l.status))}</span></dd>
       <dt>Plan</dt><dd>${esc(planName(l.plan))} · ${l.teamSeats} team members${l.price ? ` · ${money(l.price)} a ${l.plan === "yearly" ? "year" : "month"}` : ""}</dd>
       <dt>Paid until</dt><dd>${l.paidUntil ? day(l.paidUntil) : (l.status === "pending" ? "Not paid yet" : "No end date")}</dd>
       <dt>Used on</dt><dd>${l.usedOn.length ? l.usedOn.map(u => `${esc(u.businessName || u.deviceName)} <span class="muted">(${esc(u.platform)} ${esc(u.appVersion)}, last checked ${day(u.lastSeenUtc)})</span>`).join("<br>") : "Not in use"}</dd>
     </dl>
-    ${l.status === "pending" ? `<p class="note">Your licence starts as soon as your payment is received. The app picks it up by itself — there's nothing to type in. Until then your free trial carries on.</p>` : ""}
-    ${!l.key ? `<p class="muted">The full key isn't shown for licences made before the portal opened. Contact us for a new key if you need it.</p>` : ""}
-  `).join("<hr>") : `<p><strong>No licence yet.</strong></p>
+    ${l.status === "pending" ? `<p class="note">Your licence starts as soon as you've paid. ${l.usedOn.length
+        ? "Zono Workforce picks it up by itself — there's nothing to type in."
+        : "Then enter the key in Zono Workforce: Settings, then Licence."} Until then your free trial carries on.</p>` : ""}
+    ${l.status === "expired" ? `<p class="note">This licence has run out, so Zono Workforce is read-only. Pay to carry on; the app picks it up by itself.</p>` : ""}
+    ${!l.key && l.status !== "pending" ? `<p class="muted">The full key isn't shown for licences made before the portal opened. Contact us for a new key if you need it.</p>` : ""}
+    ${payButton(l)}
+  `).join("<hr>") : me.payOnline ? `<p><strong>No licence yet.</strong> Choose a plan and pay online, then enter the key in Zono Workforce (Settings, then Licence). You can also use it free for 30 days first.</p>
+    <form id="buyForm">
+      <div class="grid">
+        <div><label for="bPlan">Plan</label><select id="bPlan"><option value="monthly">Monthly</option><option value="yearly">Yearly (2 months free)</option></select></div>
+        <div><label for="bSeats">Team members</label><input id="bSeats" type="number" min="5" max="10000" step="1" value="5" required></div>
+      </div>
+      <p class="muted" id="bPrice"></p>
+      <p><button class="primary" type="submit">Pay by card or PayPal</button></p>
+    </form>` : `<p><strong>No licence yet.</strong></p>
     <ol class="muted" style="padding-left:1.2em">
       <li><a href="/workforce/download">Download Zono Workforce</a> and use it free for 30 days.</li>
       <li>In the app, go to Settings, then Licence, then Buy a licence.</li>
       <li>Use this account's username and password there. The licence is added to this account.</li>
     </ol>`;
+  if ($("buyForm")) {
+    const price = () => {
+      const seats = Math.max(5, parseInt($("bSeats").value || "5", 10) || 5), yearly = $("bPlan").value === "yearly";
+      const amount = (yearly ? 120 : 12) + (yearly ? 20 : 2) * (seats - 5);
+      $("bPrice").textContent = `${money(amount)} a ${yearly ? "year" : "month"} for ${seats} team members (5 included; then ${yearly ? "£20 a year" : "£2 a month"} each).`;
+    };
+    $("bPlan").onchange = price; $("bSeats").oninput = price; price();
+    $("buyForm").onsubmit = e => { e.preventDefault(); pay({ plan: $("bPlan").value, teamSeats: parseInt($("bSeats").value, 10) }); };
+  }
 
   const due = me.licences.find(l => l.status === "pending" || l.status === "expired") || me.licences[0];
-  $("payment").innerHTML = due && due.price
-    ? `<dl><dt>Amount</dt><dd>${money(due.price)} a ${due.plan === "yearly" ? "year" : "month"} (${due.teamSeats} team members)</dd>
-         <dt>Payment methods</dt><dd>Card and Direct Debit payments are coming soon.</dd></dl>
-       <p class="note">To pay now, email <a href="mailto:ZonoSoft@outlook.com?subject=${encodeURIComponent("Licence payment: " + me.businessName)}">ZonoSoft@outlook.com</a> with your business name and we'll tell you how to pay. Your licence starts when payment arrives.</p>`
-    : `<p class="muted">Nothing to pay.</p>`;
+  const secure = `<p class="muted">Payments are taken by <strong>Stripe</strong> on its own secure page. Your card details go to Stripe, never to ZonoSoft. Pay by card or PayPal; the licence renews by itself until you cancel.</p>`;
+  $("payment").innerHTML = (me.payOnline
+      ? (due && due.price ? `<dl><dt>Amount</dt><dd>${money(due.price)} a ${due.plan === "yearly" ? "year" : "month"} (${due.teamSeats} team members)</dd></dl>` : "") + secure +
+        (me.manageBilling ? `<p><button type="button" id="billing">Manage payments and invoices</button></p><p class="muted">Change your card, download invoices or cancel. A cancelled licence runs to the end of the period you've paid for.</p>` : "")
+      : due && due.price
+        ? `<dl><dt>Amount</dt><dd>${money(due.price)} a ${due.plan === "yearly" ? "year" : "month"} (${due.teamSeats} team members)</dd>
+             <dt>Payment methods</dt><dd>Card and PayPal payments are coming soon.</dd></dl>
+           <p class="note">To pay now, email <a href="mailto:ZonoSoft@outlook.com?subject=${encodeURIComponent("Licence payment: " + me.businessName)}">ZonoSoft@outlook.com</a> with your business name and we'll tell you how to pay. Your licence starts when payment arrives.</p>`
+        : `<p class="muted">Nothing to pay.</p>`);
+  if ($("billing")) $("billing").onclick = async () => {
+    const j = await call("/billing", {});
+    if (j.ok && j.url) location.href = j.url; else flash(j.message || "Couldn't open the payments page.", true);
+  };
+  return me;
 }
 
+function flash(text, bad) {
+  $("flash").textContent = text;
+  $("flash").classList.toggle("hidden", !text);
+  $("flash").style.background = bad ? "" : "var(--ok-soft)";
+}
+
+// Off to Stripe's checkout page
+async function pay(body) {
+  flash("Opening the secure payment page…");
+  const j = await call("/checkout", body);
+  if (j.ok && j.url) { location.href = j.url; return; }
+  flash(j.message || "Couldn't start the payment.", true);
+}
+
+// Back from Stripe: thank them and wait for the payment to arrive (Stripe tells the server within a few seconds)
+(async () => {
+  const q = new URLSearchParams(location.search);
+  if (!q.has("paid") && !q.has("cancelled")) return;
+  history.replaceState(null, "", "/portal");
+  if (q.has("cancelled")) { flash("Payment cancelled. Nothing was taken."); return; }
+  flash("Thank you! Your payment is being confirmed…");
+  for (let i = 0; i < 15; i++) {
+    await new Promise(r => setTimeout(r, 2000));
+    let me; try { me = await load(); } catch { return; }
+    if (me && me.licences.some(l => l.status === "active" && l.key)) {
+      flash("Payment received — thank you! Your licence key is below. Zono Workforce picks it up by itself, or enter the key in Settings, then Licence.");
+      return;
+    }
+  }
+  flash("Thank you! Your payment is still being confirmed. Refresh this page in a minute to see your licence key.");
+})();
+
 $("licences").onclick = e => {
+  const p = e.target.closest("button[data-pay]"); if (p) { pay({ licenceId: p.dataset.pay }); return; }
   const b = e.target.closest("button[data-copy]"); if (!b) return;
   navigator.clipboard.writeText(b.dataset.copy).then(() => { b.textContent = "Copied"; setTimeout(() => b.textContent = "Copy", 1500); });
 };
