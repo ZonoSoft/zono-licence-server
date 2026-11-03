@@ -1,0 +1,4 @@
+c3aedc9e8809c5fa7e523f85af717b44f1fdce24708e2d4b6ce89f5c429be016 ZonoWorkforceSuite-v0.33.0-Windows-Setup.exe
+cbca569787ea7847bf7ea6f932146139a4c4a062a9f10e887165ab1c76d52bc0 ZonoTeam-v0.33.0-Windows-Setup.exe
+80ed4f78bfeafb326edc2cd7c8cecd08719e8ffd6247b87f723cf435dd6b5462 ZonoWorkforce-v0.33.0-Android.apk
+7d853030e6c719fa3ab10090067154c3bef93f125ccef0a1dc67ddc7bee929a2 ZonoTeam-v0.33.0-Android.apk
