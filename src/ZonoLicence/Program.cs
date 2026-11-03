@@ -22,6 +22,7 @@ builder.Services.AddSingleton<LicenceService>();
 builder.Services.AddSingleton(_ => new Secrets(Path.Combine(dataDir, "secret.key")));
 builder.Services.AddSingleton(sp => new CustomerStore(Path.Combine(dataDir, "licences.db"), sp.GetRequiredService<Secrets>()));
 builder.Services.AddSingleton<CustomerService>();
+builder.Services.AddSingleton(_ => new Downloads(Path.Combine(dataDir, "downloads")));
 builder.Services.Configure<ForwardedHeadersOptions>(o =>
 {
     // Caddy on the same server passes the visitor's address
@@ -90,6 +91,19 @@ app.MapPost("/api/v1/hello", (HelloRequest r, CustomerService svc) => { var (sta
 app.MapPost("/api/v1/register", (RegisterRequest r, CustomerService svc, HttpContext c) => { var (status, body) = svc.Register(r, Ip(c)); return Results.Json(body, statusCode: status); })
     .RequireRateLimiting("register");
 app.MapPost("/api/v1/deactivate", (RefreshRequest r, LicenceService svc, HttpContext c) => Send(svc.Deactivate(r, Ip(c)))).RequireRateLimiting("refresh");
+
+// ---------- Downloads (the website's installers) ----------
+
+app.MapGet("/api/v1/downloads", (Downloads d) => Results.Json(d.Latest().Select(f => new
+{
+    f.Name, f.Product, f.Platform, f.Version, f.Bytes, f.Sha256, f.UploadedUtc, Url = "/downloads/" + f.Name
+})));
+app.MapGet("/downloads/{name}", (string name, Downloads d, HttpContext c) =>
+{
+    if (!Downloads.ValidName(name) || !File.Exists(d.PathOf(name))) return Results.NotFound();
+    c.Response.Headers.CacheControl = "public, max-age=3600";
+    return Results.File(d.PathOf(name), Downloads.ContentType(name), name, enableRangeProcessing: true);
+}).RequireRateLimiting("refresh");
 
 // ---------- Customer portal ----------
 
@@ -217,6 +231,30 @@ admin.MapPost("/activations/{id:long}/release", (long id, LicenceStore s, HttpCo
 {
     s.ReleaseById(id);
     s.Log(null, "released", "activation " + id, Ip(c));
+    return Results.Json(new { ok = true });
+});
+
+admin.MapGet("/downloads", (Downloads d) => Results.Json(d.All()));
+admin.MapPost("/downloads", async (HttpContext c, Downloads d, LicenceStore s) =>
+{
+    var name = c.Request.Query["name"].ToString();
+    if (!Downloads.ValidName(name))
+        return Results.Json(new { ok = false, message = "Use the build's own file name, e.g. ZonoWorkforceSuite-v0.32.0-Windows.zip or ZonoTeam-v0.32.0-Android.apk." }, statusCode: 400);
+    try
+    {
+        var saved = await d.SaveAsync(name, c.Request.Body, c.RequestAborted);
+        s.Log(null, "download uploaded", $"{name} ({saved.Bytes / 1048576.0:0.0} MB)", Ip(c));
+        return Results.Json(new { ok = true, file = saved });
+    }
+    catch (InvalidDataException e)
+    {
+        return Results.Json(new { ok = false, message = e.Message }, statusCode: 400);
+    }
+}).WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(Downloads.MaxBytes));
+admin.MapPost("/downloads/{name}/delete", (string name, Downloads d, LicenceStore s, HttpContext c) =>
+{
+    if (!d.Delete(name)) return Results.NotFound();
+    s.Log(null, "download deleted", name, Ip(c));
     return Results.Json(new { ok = true });
 });
 

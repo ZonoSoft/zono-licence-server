@@ -80,19 +80,68 @@ ReadOnlyPaths=$ETC
 WantedBy=multi-user.target
 UNIT
 
-# The customer portal is also served on the main web address once its DNS points here
-SITES="$DOMAIN"
+# The website (zonosoft.co.uk) is served from this server once its DNS points here
+rm -rf "$APP/site.new"; cp -r "$APP/src/site" "$APP/site.new"; chmod -R a+rX "$APP/site.new"
+rm -rf "$APP/site.old"; [ -d "$APP/site" ] && mv "$APP/site" "$APP/site.old"; mv "$APP/site.new" "$APP/site"
+
 SERVER_IP=$(hostname -I | awk '{print $1}')
-for d in ${PORTAL_DOMAINS:-zonosoft.co.uk www.zonosoft.co.uk}; do
-  if getent ahostsv4 "$d" | awk '{print $1}' | grep -qx "$SERVER_IP"; then SITES="$SITES, $d"; fi
-done
-cat > /etc/caddy/Caddyfile <<CADDY
-$SITES {
+points_here() { getent ahostsv4 "$1" | awk '{print $1}' | grep -qx "$SERVER_IP"; }
+WEB="${WEB_DOMAIN:-zonosoft.co.uk}"
+
+cat > /etc/caddy/Caddyfile.new <<CADDY
+$DOMAIN {
     encode gzip
     reverse_proxy 127.0.0.1:5080
 }
 CADDY
-echo "== Web addresses: $SITES"
+if points_here "$WEB"; then
+cat >> /etc/caddy/Caddyfile.new <<CADDY
+
+$WEB {
+    encode zstd gzip
+    header {
+        Strict-Transport-Security "max-age=31536000"
+        X-Content-Type-Options "nosniff"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        X-Frame-Options "DENY"
+        Permissions-Policy "camera=(), microphone=(), geolocation=()"
+    }
+    @app path /portal /portal/* /api/* /downloads/*
+    handle @app {
+        reverse_proxy 127.0.0.1:5080
+    }
+    handle {
+        root * $APP/site
+        try_files {path} {path}.html {path}/index.html
+        header /fonts/* Cache-Control "public, max-age=2592000"
+        header /img/* Cache-Control "public, max-age=86400"
+        file_server
+    }
+    handle_errors {
+        root * $APP/site
+        rewrite * /404.html
+        file_server
+    }
+}
+CADDY
+fi
+if points_here "www.$WEB"; then
+cat >> /etc/caddy/Caddyfile.new <<CADDY
+
+www.$WEB {
+    redir https://$WEB{uri} permanent
+}
+CADDY
+fi
+# Only use the new web server settings if they're valid (a mistake must never take the licence server down)
+if caddy validate --config /etc/caddy/Caddyfile.new --adapter caddyfile >/dev/null 2>&1; then
+  mv /etc/caddy/Caddyfile.new /etc/caddy/Caddyfile
+else
+  echo "!! New web server settings weren't valid; keeping the previous ones."
+  caddy validate --config /etc/caddy/Caddyfile.new --adapter caddyfile || true
+  rm -f /etc/caddy/Caddyfile.new
+fi
+echo "== Web addresses: $(grep -E '^[a-z].* \{$' /etc/caddy/Caddyfile | tr -d '{' | xargs)"
 
 # Daily backup of the licence database (kept 30 days) and the signing key
 cat > /etc/cron.daily/zono-licence-backup <<'BACKUP'
@@ -116,7 +165,7 @@ CHANGED=0
 [ "$(git -C "$SRC" rev-parse HEAD)" != "$(git -C "$SRC" rev-parse origin/main)" ] && CHANGED=1
 SERVER_IP=$(hostname -I | awk '{print $1}')
 for d in zonosoft.co.uk www.zonosoft.co.uk; do
-  if getent ahostsv4 "$d" | awk '{print $1}' | grep -qx "$SERVER_IP" && ! grep -q "$d" /etc/caddy/Caddyfile; then CHANGED=1; fi
+  if getent ahostsv4 "$d" | awk '{print $1}' | grep -qx "$SERVER_IP" && ! grep -q "^$d {" /etc/caddy/Caddyfile; then CHANGED=1; fi
 done
 if [ "$CHANGED" = 1 ]; then
   git -C "$SRC" reset -q --hard origin/main
@@ -149,7 +198,7 @@ sleep 3
 
 echo
 if curl -fsS http://127.0.0.1:5080/api/v1/health >/dev/null; then echo "== Licence server is running."; else echo "!! The licence server didn't start: journalctl -u zono-licence -n 50"; fi
-echo "== Web address: https://$DOMAIN  (admin page: https://$DOMAIN/admin, customer portal: https://$DOMAIN/portal)"
+echo "== Licence server: https://$DOMAIN  (admin page: https://$DOMAIN/admin)   Website: https://$WEB"
 echo "== Updates itself from GitHub every 15 minutes (log: /var/log/zono-licence-update.log)"
 echo "== Admin key:   sudo cat $ETC/admin.key"
 echo "== Public key for the apps:"
