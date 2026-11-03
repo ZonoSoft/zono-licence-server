@@ -110,6 +110,49 @@ app.MapGet("/downloads/{name}", (string name, Downloads d, CustomerStore store, 
     return Results.File(d.PathOf(name), Downloads.ContentType(name), name, enableRangeProcessing: true);
 }).RequireRateLimiting("refresh");
 
+// ---------- App updates ----------
+// An app that has said hello (a known machine) asks whether there's a newer version. The answer is signed with the
+// licence signing key, so the app knows it came from ZonoSoft; the signed ticket also lets it download that one file
+// for an hour (the website's downloads need an account; the apps use this instead). The app checks the file's
+// SHA-256 against the signed one before installing.
+app.MapPost("/api/v1/update", (UpdateRequest r, Downloads d, CustomerStore store, TokenSigner signer, LicenceStore log, HttpContext c) =>
+{
+    if (r.MachineId is not { Length: >= 16 and <= 128 } mid || store.GetMachine(mid) is null)
+        return Results.Json(new { ok = false, message = "Unknown machine." }, statusCode: 403);
+    var product = r.Product?.ToLowerInvariant() == "team" ? "team" : "workforce";
+    var platform = (r.Platform ?? "").ToLowerInvariant();
+    var ext = platform switch { "windows" => ".exe", "android" => ".apk", _ => null };
+    if (ext is null || !Version.TryParse(r.AppVersion, out var current)) return Results.Json(new { ok = true, update = false });
+    var latest = d.All()
+        .Where(f => f.Product == product && f.Platform.Equals(platform, StringComparison.OrdinalIgnoreCase)
+                    && f.Name.EndsWith(ext, StringComparison.OrdinalIgnoreCase) && f.Sha256.Length == 64)
+        .OrderByDescending(f => Version.Parse(f.Version)).FirstOrDefault();
+    if (latest is null || Version.Parse(latest.Version) <= current) return Results.Json(new { ok = true, update = false });
+    var ticket = signer.Sign(System.Text.Json.JsonSerializer.Serialize(new Dictionary<string, object>
+    {
+        ["typ"] = "update", ["name"] = latest.Name, ["ver"] = latest.Version, ["sha"] = latest.Sha256, ["bytes"] = latest.Bytes,
+        ["mid"] = mid, ["exp"] = DateTime.UtcNow.AddHours(1).ToString("O", System.Globalization.CultureInfo.InvariantCulture)
+    }));
+    return Results.Json(new { ok = true, update = true, version = latest.Version, name = latest.Name, bytes = latest.Bytes, sha256 = latest.Sha256, ticket });
+}).RequireRateLimiting("hello");
+
+app.MapGet("/api/v1/update/file", (string t, Downloads d, TokenSigner signer, LicenceStore log, HttpContext c) =>
+{
+    if (signer.Verify(t) is not { } json) return Results.StatusCode(403);
+    using var doc = System.Text.Json.JsonDocument.Parse(json);
+    var p = doc.RootElement;
+    string S(string k) => p.TryGetProperty(k, out var v) && v.ValueKind == System.Text.Json.JsonValueKind.String ? v.GetString() ?? "" : "";
+    if (S("typ") != "update" || !DateTime.TryParse(S("exp"), System.Globalization.CultureInfo.InvariantCulture,
+            System.Globalization.DateTimeStyles.RoundtripKind, out var exp) || exp < DateTime.UtcNow)
+        return Results.StatusCode(403);
+    var name = S("name");
+    if (!Downloads.ValidName(name) || !File.Exists(d.PathOf(name))) return Results.NotFound();
+    if (c.Request.Headers.Range.Count == 0 || c.Request.Headers.Range.ToString().StartsWith("bytes=0-", StringComparison.Ordinal))
+        log.Log(null, "update", $"{name} · machine {S("mid")[..Math.Min(12, S("mid").Length)]}", Ip(c));
+    c.Response.Headers.CacheControl = "private, no-store";
+    return Results.File(d.PathOf(name), Downloads.ContentType(name), name, enableRangeProcessing: true);
+}).RequireRateLimiting("refresh");
+
 // The server's import key: builds are encrypted to it before they're published (see deploy/import-downloads.sh)
 app.MapGet("/api/v1/import-key", () =>
 {
@@ -300,3 +343,5 @@ public sealed record NewLicence(string BusinessName, string? Email, string? Plan
 public sealed record LicenceChange(string? BusinessName, string? Email, string? Plan, int? TeamSeats, string? Expires, int? MaxActivations, string? Status, string? Notes);
 
 public partial class Program;
+
+public sealed record UpdateRequest(string? MachineId, string? Product, string? Platform, string? AppVersion);
