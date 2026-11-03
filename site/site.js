@@ -72,6 +72,7 @@
   const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   $("rDial").innerHTML = (window.ZONO_COUNTRIES || []).map(([name, iso, code]) =>
     `<option value="${esc(code)}"${iso === "GB" ? " selected" : ""}>${esc(name)} (${esc(code)})</option>`).join("");
+  form.addEventListener("input", e => e.target.removeAttribute("aria-invalid"));
   let userTouched = false;
   $("rUser").addEventListener("input", () => { userTouched = true; });
   $("rEmail").addEventListener("input", () => { if (!userTouched) $("rUser").value = $("rEmail").value.trim(); });
