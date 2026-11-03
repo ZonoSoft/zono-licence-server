@@ -98,12 +98,28 @@ app.MapGet("/api/v1/downloads", (Downloads d) => Results.Json(d.Latest().Select(
 {
     f.Name, f.Product, f.Platform, f.Version, f.Bytes, f.Sha256, f.UploadedUtc, Url = "/downloads/" + f.Name
 })));
-app.MapGet("/downloads/{name}", (string name, Downloads d, HttpContext c) =>
+// Only people signed in to a ZonoSoft account can download
+app.MapGet("/downloads/{name}", (string name, Downloads d, CustomerStore store, LicenceStore log, HttpContext c) =>
 {
     if (!Downloads.ValidName(name) || !File.Exists(d.PathOf(name))) return Results.NotFound();
-    c.Response.Headers.CacheControl = "public, max-age=3600";
+    if (store.SessionAccount(SessionToken(c)) is not { } accountId)
+        return Results.Redirect("/portal?next=" + Uri.EscapeDataString("/workforce/download"));
+    c.Response.Headers.CacheControl = "private, no-store";
+    if (c.Request.Headers.Range.Count == 0 || c.Request.Headers.Range.ToString().StartsWith("bytes=0-", StringComparison.Ordinal))
+        log.Log(null, "download", $"{name} · account {accountId}", Ip(c));
     return Results.File(d.PathOf(name), Downloads.ContentType(name), name, enableRangeProcessing: true);
 }).RequireRateLimiting("refresh");
+
+// The server's import key: builds are encrypted to it before they're published (see deploy/import-downloads.sh)
+app.MapGet("/api/v1/import-key", () =>
+{
+    var path = Path.Combine(dataDir, "import-public.pem");
+    return File.Exists(path) ? Results.Text(File.ReadAllText(path), "text/plain") : Results.NotFound();
+});
+
+// Is someone signed in (for the website's download page)
+app.MapGet("/api/portal/session", (CustomerStore store, HttpContext c) =>
+    Results.Json(new { signedIn = store.SessionAccount(SessionToken(c)) is not null }));
 
 // ---------- Customer portal ----------
 

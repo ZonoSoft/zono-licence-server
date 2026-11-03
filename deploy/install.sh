@@ -53,6 +53,13 @@ if [ ! -s "$ETC/admin.key" ]; then
   echo "zono-admin-$(openssl rand -base64 24 | tr '+/' '-_' | tr -d '=')" > "$ETC/admin.key"
 fi
 chown root:zonolic "$ETC/admin.key"; chmod 0640 "$ETC/admin.key"
+# Import key: new app builds are encrypted to it before they're published (deploy/import-downloads.sh)
+if [ ! -s "$ETC/import.key" ]; then
+  openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:4096 -out "$ETC/import.key" 2>/dev/null
+fi
+chmod 0600 "$ETC/import.key"
+openssl pkey -in "$ETC/import.key" -pubout -out "$DATA/import-public.pem"
+chown zonolic:zonolic "$DATA/import-public.pem"; chmod 0644 "$DATA/import-public.pem"
 
 cat > /etc/systemd/system/zono-licence.service <<UNIT
 [Unit]
@@ -171,6 +178,8 @@ if [ "$CHANGED" = 1 ]; then
   git -C "$SRC" reset -q --hard origin/main
   bash "$SRC/deploy/install.sh" >> /var/log/zono-licence-update.log 2>&1
 fi
+# New app installers for the website
+bash "$SRC/deploy/import-downloads.sh" >> /var/log/zono-licence-update.log 2>&1 || true
 UPDATE
 cat > /etc/systemd/system/zono-licence-update.service <<'UNIT'
 [Unit]
@@ -191,6 +200,8 @@ UNIT
 
 systemctl daemon-reload
 systemctl enable -q --now zono-licence-update.timer
+# Bring in any new app installers now (the timer also checks every 15 minutes)
+bash "$(dirname "$0")/import-downloads.sh" || true
 systemctl enable -q zono-licence caddy
 systemctl restart zono-licence
 systemctl reload caddy 2>/dev/null || systemctl restart caddy

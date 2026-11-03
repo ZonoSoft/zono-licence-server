@@ -232,3 +232,5 @@ section { padding: 80px 0; }
 .form-box .check input { width: 22px; min-height: 22px; height: 22px; margin-top: 2px; flex: none; accent-color: var(--teal); }
 .form-error { background: var(--sick); color: var(--sick-ink); border-radius: 8px; padding: 12px 14px; font-weight: 700; margin: 18px 0 0; }
 .form-box .btn { margin-top: 22px; width: 100%; }
+.dl-gate { margin-bottom: 24px; }
+.dl-gate .btn { margin: 6px 8px 0 0; }

@@ -46,16 +46,28 @@
     const day = s => new Date(s).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
     const app = p => p === "team" ? "Zono Team" : "Zono Workforce";
     const who = p => p === "team" ? "For team members: clock in, shifts and holiday" : "For managers: rota, payroll, staff and settings";
-    fetch("/api/v1/downloads").then(r => r.ok ? r.json() : Promise.reject())
-      .then(files => {
+    const here = encodeURIComponent(location.pathname);
+    Promise.all([
+      fetch("/api/v1/downloads").then(r => r.ok ? r.json() : Promise.reject()),
+      fetch("/api/portal/session", { credentials: "same-origin" }).then(r => r.ok ? r.json() : { signedIn: false }).catch(() => ({ signedIn: false }))
+    ])
+      .then(([files, session]) => {
         if (!files.length) throw new Error("none");
         files.sort((a, b) => (a.product === b.product ? 0 : a.product === "workforce" ? -1 : 1) || b.platform.localeCompare(a.platform));
-        list.innerHTML = `<table class="dl-table"><thead><tr><th>App</th><th>For</th><th>Version</th><th></th></tr></thead><tbody>${files.map(f => `
+        const gate = session.signedIn ? "" : `
+          <div class="notice dl-gate">
+            <p><strong>Downloads are for ZonoSoft account holders.</strong> Creating an account is free and takes a minute; your 30-day trial starts when you first open the app.</p>
+            <p><a class="btn" href="/account/register?next=${here}">Create a free account</a> <a class="btn quiet" href="/portal?next=${here}">Sign in</a></p>
+          </div>`;
+        const button = f => session.signedIn
+          ? `<a class="btn small-btn" href="${esc(f.url)}" download>${/\.exe$|\.msi$/i.test(f.name) ? "Download installer" : "Download ." + f.name.split(".").pop()} (${mb(f.bytes)})</a>`
+          : `<span class="small">${mb(f.bytes)}<br>Sign in to download</span>`;
+        list.innerHTML = gate + `<table class="dl-table"><thead><tr><th>App</th><th>For</th><th>Version</th><th></th></tr></thead><tbody>${files.map(f => `
           <tr>
             <td><strong>${app(f.product)}</strong><br>${esc(f.platform)}</td>
             <td>${who(f.product)}<div class="hash">SHA-256: ${esc(f.sha256)}</div></td>
             <td>${esc(f.version)}<div class="small">${day(f.uploadedUtc)}</div></td>
-            <td><a class="btn small-btn" href="${esc(f.url)}" download>${/\.exe$|\.msi$/i.test(f.name) ? "Download installer" : "Download ." + f.name.split(".").pop()} (${mb(f.bytes)})</a></td>
+            <td>${button(f)}</td>
           </tr>`).join("")}</tbody></table>`;
       })
       .catch(() => {
@@ -99,7 +111,11 @@
           phoneCountry: $("rDial").value, phone: $("rPhone").value, username: $("rUser").value, password: $("rPass").value, acceptTerms: true })
       });
       let j = {}; try { j = await r.json(); } catch {}
-      if (r.ok && j.ok) { location.href = "/portal"; return; }
+      if (r.ok && j.ok) {
+        const n = new URLSearchParams(location.search).get("next") || "";
+        location.href = /^\/(?![\/\\])[A-Za-z0-9/_\-.]*$/.test(n) ? n : "/portal";
+        return;
+      }
       fail(r.status === 429 ? "Too many tries. Wait a minute and try again." : (j.message || "The account couldn't be created. Try again."));
     } catch {
       fail("Couldn't reach ZonoSoft. Check your internet connection and try again.");
