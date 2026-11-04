@@ -162,11 +162,14 @@ find /var/backups/zono-licence -name 'licences-*.db' -mtime +30 -delete
 BACKUP
 chmod 755 /etc/cron.daily/zono-licence-backup
 
-# IP addresses are never kept: clear any in older backups too
+# IP addresses and free-trial device records are never kept: clear any in older backups too
 for f in /var/backups/zono-licence/licences-*.db; do
   [ -f "$f" ] || continue
   if [ "$(sqlite3 "$f" "SELECT count(*) FROM events WHERE ip <> '';" 2>/dev/null || echo 0)" != "0" ]; then
     sqlite3 "$f" "UPDATE events SET ip = '' WHERE ip <> ''; VACUUM;" && echo "== Cleared IP addresses from $(basename "$f")"
+  fi
+  if [ "$(sqlite3 "$f" "SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = 'machines';" 2>/dev/null || echo 0)" != "0" ]; then
+    sqlite3 "$f" "DROP TABLE machines; VACUUM;" && echo "== Removed trial device records from $(basename "$f")"
   fi
 done
 

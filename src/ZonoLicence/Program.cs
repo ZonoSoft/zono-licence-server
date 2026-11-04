@@ -113,14 +113,20 @@ app.MapGet("/downloads/{name}", (string name, Downloads d, CustomerStore store, 
 }).RequireRateLimiting("refresh");
 
 // ---------- App updates ----------
-// An app that has said hello (a known machine) asks whether there's a newer version. The answer is signed with the
-// licence signing key, so the app knows it came from ZonoSoft; the signed ticket also lets it download that one file
-// for an hour (the website's downloads need an account; the apps use this instead). The app checks the file's
-// SHA-256 against the signed one before installing.
-app.MapPost("/api/v1/update", (UpdateRequest r, Downloads d, CustomerStore store, TokenSigner signer, LicenceStore log, HttpContext c) =>
+// An app with a licence or demo key (its signed token) asks whether there's a newer version. The answer is signed with
+// the licence signing key, so the app knows it came from ZonoSoft; the signed ticket also lets it download that one file
+// for an hour (the website's downloads need an account; the apps use this instead). The app checks the file's SHA-256
+// against the signed one before installing. Nothing is recorded. "MachineId" is a one-off code the app makes for this
+// check (older apps sent a device code); it's only put in the ticket so the app knows the answer was meant for it.
+// Apps before 0.35 didn't send their token, so they're still answered (they need the update to keep working).
+app.MapPost("/api/v1/update", (UpdateRequest r, Downloads d, LicenceStore licences, LicenceService licensing, TokenSigner signer) =>
 {
-    if (r.MachineId is not { Length: >= 16 and <= 128 } mid || store.GetMachine(mid) is null)
-        return Results.Json(new { ok = false, message = "Unknown machine." }, statusCode: 403);
+    if (r.MachineId is not { Length: >= 16 and <= 128 } mid)
+        return Results.Json(new { ok = false, message = "Missing check code." }, statusCode: 400);
+    var licensed = licensing.Read(r.Token) is { } t && (string?)t["lid"] is { } lid && licences.Get(lid) is { Status: not "revoked" };
+    var legacy = r.Token is null && Version.TryParse(r.AppVersion, out var v) && v < new Version(0, 35);
+    if (!licensed && !legacy)
+        return Results.Json(new { ok = false, message = "Updates need a licence or demo key." }, statusCode: 403);
     var product = r.Product?.ToLowerInvariant() == "team" ? "team" : "workforce";
     var platform = (r.Platform ?? "").ToLowerInvariant();
     var ext = platform switch { "windows" => ".exe", "android" => ".apk", _ => null };
@@ -138,7 +144,7 @@ app.MapPost("/api/v1/update", (UpdateRequest r, Downloads d, CustomerStore store
     return Results.Json(new { ok = true, update = true, version = latest.Version, name = latest.Name, bytes = latest.Bytes, sha256 = latest.Sha256, ticket });
 }).RequireRateLimiting("hello");
 
-app.MapGet("/api/v1/update/file", (string t, Downloads d, TokenSigner signer, LicenceStore log, HttpContext c) =>
+app.MapGet("/api/v1/update/file", (string t, Downloads d, TokenSigner signer, HttpContext c) =>
 {
     if (signer.Verify(t) is not { } json) return Results.StatusCode(403);
     using var doc = System.Text.Json.JsonDocument.Parse(json);
@@ -149,8 +155,6 @@ app.MapGet("/api/v1/update/file", (string t, Downloads d, TokenSigner signer, Li
         return Results.StatusCode(403);
     var name = S("name");
     if (!Downloads.ValidName(name) || !File.Exists(d.PathOf(name))) return Results.NotFound();
-    if (c.Request.Headers.Range.Count == 0 || c.Request.Headers.Range.ToString().StartsWith("bytes=0-", StringComparison.Ordinal))
-        log.Log(null, "update", $"{name} · machine {S("mid")[..Math.Min(12, S("mid").Length)]}");
     c.Response.Headers.CacheControl = "private, no-store";
     return Results.File(d.PathOf(name), Downloads.ContentType(name), name, enableRangeProcessing: true);
 }).RequireRateLimiting("refresh");
@@ -290,17 +294,14 @@ object Describe(LicenceStore s, Licence l) => new
 };
 
 admin.MapGet("/licences", (LicenceStore s) => Results.Json(s.All().Select(l => Describe(s, l))));
-admin.MapGet("/machines", (CustomerStore s) => Results.Json(s.AllMachines().Select(m => new
-{
-    m.Id, m.Product, m.Platform, m.AppVersion, m.BusinessName, m.FirstSeenUtc, m.LastSeenUtc, m.Launches,
-    TrialStarted = m.TrialStarted.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), Registered = m.AccountId is not null
-})));
 admin.MapGet("/events", (LicenceStore s) => Results.Json(s.Events().Select(e => new { e.At, e.LicenceId, e.What, e.Detail })));
 
 admin.MapPost("/licences", (NewLicence n, LicenceStore s, HttpContext c) =>
 {
     if (string.IsNullOrWhiteSpace(n.BusinessName)) return Results.Json(new { ok = false, message = "Enter the business name." }, statusCode: 400);
     DateOnly? expires = DateOnly.TryParse(n.Expires, CultureInfo.InvariantCulture, out var d) ? d : null;
+    // A demo key works up to and including its last day (UK time); 14 days unless another date is chosen
+    if (n.Plan == "demo") expires ??= LicenceService.UkToday(DateTime.UtcNow).AddDays(13);
     var (licence, key) = s.Create(n.BusinessName, n.Email ?? "", n.Plan ?? "monthly", Math.Clamp(n.TeamSeats ?? 5, 1, 10000), expires,
         Math.Clamp(n.MaxActivations ?? 1, 1, 50), n.Notes ?? "", secrets: c.RequestServices.GetRequiredService<Secrets>());
     s.Log(licence.Id, "created", $"{licence.BusinessName} · {licence.Plan} · {licence.TeamSeats} team members");
@@ -387,4 +388,4 @@ public sealed record LicenceChange(string? BusinessName, string? Email, string? 
 
 public partial class Program;
 
-public sealed record UpdateRequest(string? MachineId, string? Product, string? Platform, string? AppVersion);
+public sealed record UpdateRequest(string? MachineId, string? Product, string? Platform, string? AppVersion, string? Token = null);

@@ -61,9 +61,9 @@
       <div class="row">
         <div><label>Business name</label><input id="nBusiness" maxlength="80"></div>
         <div><label>Email</label><input id="nEmail" type="email" maxlength="120"></div>
-        <div><label>Plan</label><select id="nPlan"><option value="monthly">Monthly (£12)</option><option value="yearly">Yearly (£120)</option><option value="lifetime">Lifetime</option><option value="trial">Extended trial</option></select></div>
+        <div><label>Plan</label><select id="nPlan"><option value="monthly">Monthly (£12)</option><option value="yearly">Yearly (£120)</option><option value="lifetime">Lifetime</option><option value="demo">Demo key (needs internet; 14 days unless you pick a date)</option></select></div>
         <div><label>Team members included</label><input id="nSeats" type="number" min="1" value="5"></div>
-        <div><label>Paid until (blank = no end)</label><input id="nExpires" type="date"></div>
+        <div><label id="nExpiresLabel">Paid until (blank = no end)</label><input id="nExpires" type="date"></div>
         <div><label>Businesses/PCs allowed</label><input id="nMax" type="number" min="1" value="1"></div>
       </div>
       <label>Notes</label><input id="nNotes" maxlength="300">
@@ -94,15 +94,6 @@
       </table></div>
     </section>
 
-    <section class="card">
-      <details><summary>Machines and free trials</summary>
-        <p class="muted">Every PC or phone that has opened Zono. The 30-day trial counts from the first time a machine is seen, so reinstalling or resetting the app doesn't restart it.</p>
-        <div class="table-wrap"><table>
-          <thead><tr><th>Business</th><th>App</th><th>Trial started</th><th>First seen</th><th>Last seen</th><th>Launches</th><th>Registered</th></tr></thead>
-          <tbody id="machines"></tbody>
-        </table></div>
-      </details>
-    </section>
 
     <section class="card">
       <details><summary>Activity log</summary><div class="table-wrap"><table><tbody id="events"></tbody></table></div></details>
@@ -190,8 +181,6 @@ async function load() {
   }).join("") || `<tr><td colspan="7" class="muted">No licences yet.</td></tr>`;
   const files = await api("/downloads");
   $("downloads").innerHTML = files.map(f => `<tr><td><a href="/downloads/${encodeURIComponent(f.name)}">${esc(f.name)}</a><div class="muted">SHA-256 ${esc(f.sha256.slice(0, 16))}…</div></td><td>${f.product === "team" ? "Zono Team" : "Zono Workforce"} · ${esc(f.platform)}</td><td>${esc(f.version)}</td><td>${(f.bytes / 1048576).toFixed(1)} MB</td><td>${when(f.uploadedUtc)}</td><td><button class="danger" data-delfile="${esc(f.name)}">Delete</button></td></tr>`).join("") || `<tr><td colspan="6" class="muted">No downloads yet — upload the builds above.</td></tr>`;
-  const machines = await api("/machines");
-  $("machines").innerHTML = machines.map(m => `<tr><td>${esc(m.businessName || "—")}</td><td>${esc(m.product)} · ${esc(m.platform)} ${esc(m.appVersion)}</td><td>${esc(m.trialStarted)}</td><td>${when(m.firstSeenUtc)}</td><td>${when(m.lastSeenUtc)}</td><td>${m.launches}</td><td>${m.registered ? "Yes" : ""}</td></tr>`).join("") || `<tr><td colspan="7" class="muted">None yet.</td></tr>`;
   const ev = await api("/events");
   $("events").innerHTML = ev.map(e => `<tr><td class="muted">${when(e.at)}</td><td>${esc(e.what)}</td><td>${esc(e.detail)}</td><td class="muted">${esc(e.licenceId || "")}</td></tr>`).join("");
   window.licences = list;
@@ -210,6 +199,11 @@ $("create").onclick = async () => {
   $("newKeyText").textContent = j.key; $("newKey").classList.remove("hidden");
   ["nBusiness", "nEmail", "nNotes", "nExpires"].forEach(id => $(id).value = "");
   load();
+};
+$("nPlan").onchange = () => {
+  const demo = $("nPlan").value === "demo";
+  $("nExpiresLabel").textContent = demo ? "Last day of the demo (blank = 14 days)" : "Paid until (blank = no end)";
+  if (demo) { $("nNotes").value = $("nNotes").value || "Demo key"; }
 };
 $("copyKey").onclick = () => navigator.clipboard.writeText($("newKeyText").textContent);
 

@@ -5,17 +5,12 @@ using Microsoft.Data.Sqlite;
 
 namespace ZonoLicence;
 
-/// <summary>A PC or phone running Zono (its id is a one-way hash made on the device, so it identifies nothing by itself).</summary>
-public sealed record Machine(
-    string Id, string Product, string Platform, string AppVersion, string InstallId, string BusinessName,
-    DateTime FirstSeenUtc, DateTime LastSeenUtc, DateOnly TrialStarted, string? AccountId, int Launches);
-
 /// <summary>A customer's portal account. Personal details are stored encrypted (see <see cref="Secrets"/>).</summary>
 public sealed record Account(
     string Id, string Username, string BusinessName, string ContactName, string Email, string PhoneCountry, string Phone,
     string PasswordHash, DateTime CreatedUtc, DateTime? LastLoginUtc, int FailedLogins, DateTime? LockedUntilUtc);
 
-/// <summary>Machines (for the free trial), customer accounts and portal sessions, in the licence database.</summary>
+/// <summary>Customer accounts and portal sessions, in the licence database.</summary>
 public sealed class CustomerStore
 {
     private readonly string _connection;
@@ -28,19 +23,6 @@ public sealed class CustomerStore
         using var c = Open();
         using var cmd = c.CreateCommand();
         cmd.CommandText = """
-            CREATE TABLE IF NOT EXISTS machines (
-                id TEXT PRIMARY KEY,
-                product TEXT NOT NULL DEFAULT '',
-                platform TEXT NOT NULL DEFAULT '',
-                app_version TEXT NOT NULL DEFAULT '',
-                install_id TEXT NOT NULL DEFAULT '',
-                business_name TEXT NOT NULL DEFAULT '',
-                first_seen TEXT NOT NULL,
-                last_seen TEXT NOT NULL,
-                trial_started TEXT NOT NULL,
-                account_id TEXT NULL,
-                launches INTEGER NOT NULL DEFAULT 0);
-            CREATE INDEX IF NOT EXISTS ix_machines_install ON machines(install_id);
             CREATE TABLE IF NOT EXISTS accounts (
                 id TEXT PRIMARY KEY,
                 username_lookup TEXT NOT NULL UNIQUE,
@@ -66,6 +48,16 @@ public sealed class CustomerStore
         using var wipe = c.CreateCommand();
         wipe.CommandText = "UPDATE accounts SET phone = '', phone_country = '' WHERE phone <> '' OR phone_country <> '';";
         wipe.ExecuteNonQuery();
+        // No free trial (Nov 2026): devices without a licence aren't recorded. Remove the old trial records for good.
+        using var trials = c.CreateCommand();
+        trials.CommandText = "SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = 'machines';";
+        if (Convert.ToInt64(trials.ExecuteScalar(), CultureInfo.InvariantCulture) > 0)
+        {
+            trials.CommandText = "DROP TABLE machines;";
+            trials.ExecuteNonQuery();
+            trials.CommandText = "VACUUM;";
+            trials.ExecuteNonQuery();
+        }
     }
 
     private SqliteConnection Open()
@@ -84,57 +76,6 @@ public sealed class CustomerStore
         cmd.CommandText = sql;
         foreach (var (name, value) in values) cmd.Parameters.AddWithValue(name, value ?? DBNull.Value);
         return cmd;
-    }
-
-    // ---------- Machines ----------
-
-    /// <summary>Records a launch. The trial starts the first time a machine is seen and never restarts.</summary>
-    public Machine Seen(string id, string product, string platform, string appVersion, string installId, string businessName, DateTime nowUtc)
-    {
-        using var c = Open();
-        using (var cmd = Command(c, """
-            INSERT INTO machines(id, product, platform, app_version, install_id, business_name, first_seen, last_seen, trial_started, launches)
-            VALUES ($id, $pr, $pl, $v, $i, $b, $t, $t, $d, 1)
-            ON CONFLICT(id) DO UPDATE SET product = $pr, platform = $pl, app_version = $v,
-                install_id = CASE WHEN $i = '' THEN install_id ELSE $i END,
-                business_name = CASE WHEN $b = '' THEN business_name ELSE $b END,
-                last_seen = $t, launches = launches + 1;
-            """, ("$id", id), ("$pr", product), ("$pl", platform), ("$v", appVersion), ("$i", installId), ("$b", businessName),
-            ("$t", Iso(nowUtc)), ("$d", DateOnly.FromDateTime(nowUtc).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture))))
-            cmd.ExecuteNonQuery();
-        return GetMachine(id)!;
-    }
-
-    public Machine? GetMachine(string id) => Machines("SELECT * FROM machines WHERE id = $v;", id).FirstOrDefault();
-    public List<Machine> MachinesForInstall(string installId) => Machines("SELECT * FROM machines WHERE install_id = $v;", installId);
-    public List<Machine> AllMachines(int limit = 500) => Machines($"SELECT * FROM machines ORDER BY last_seen DESC LIMIT {limit};", null);
-
-    private List<Machine> Machines(string sql, string? value)
-    {
-        using var c = Open();
-        using var cmd = Command(c, sql, ("$v", value));
-        using var r = cmd.ExecuteReader();
-        var list = new List<Machine>();
-        while (r.Read())
-            list.Add(new Machine(r.GetString(0), r.GetString(1), r.GetString(2), r.GetString(3), r.GetString(4), r.GetString(5),
-                ParseTime(r.GetString(6)), ParseTime(r.GetString(7)),
-                DateOnly.ParseExact(r.GetString(8), "yyyy-MM-dd", CultureInfo.InvariantCulture), r.IsDBNull(9) ? null : r.GetString(9), r.GetInt32(10)));
-        return list;
-    }
-
-    /// <summary>Trial records of devices not seen for 2 years are deleted (as the privacy notice says).</summary>
-    public int PruneMachines(DateTime nowUtc)
-    {
-        using var c = Open();
-        using var cmd = Command(c, "DELETE FROM machines WHERE last_seen < $t;", ("$t", Iso(nowUtc.AddYears(-2))));
-        return cmd.ExecuteNonQuery();
-    }
-
-    public void LinkMachine(string machineId, string accountId)
-    {
-        using var c = Open();
-        using var cmd = Command(c, "UPDATE machines SET account_id = $a WHERE id = $id;", ("$a", accountId), ("$id", machineId));
-        cmd.ExecuteNonQuery();
     }
 
     // ---------- Accounts ----------
@@ -242,6 +183,14 @@ public sealed class CustomerStore
         using var c = Open();
         using var cmd = Command(c, "DELETE FROM sessions WHERE token_hash = $h;", ("$h", HashToken(token)));
         cmd.ExecuteNonQuery();
+    }
+
+    /// <summary>Deletes expired portal sign-ins (daily).</summary>
+    public int PruneSessions(DateTime nowUtc)
+    {
+        using var c = Open();
+        using var cmd = Command(c, "DELETE FROM sessions WHERE expires < $t;", ("$t", Iso(nowUtc)));
+        return cmd.ExecuteNonQuery();
     }
 
     public void EndSessions(string accountId)

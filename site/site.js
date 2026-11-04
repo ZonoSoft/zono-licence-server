@@ -56,7 +56,7 @@
         files.sort((a, b) => (a.product === b.product ? 0 : a.product === "workforce" ? -1 : 1) || b.platform.localeCompare(a.platform));
         const gate = session.signedIn ? "" : `
           <div class="notice dl-gate">
-            <p><strong>Downloads are for ZonoSoft account holders.</strong> Creating an account is free and takes a minute; your 30-day trial starts when you first open the app.</p>
+            <p><strong>Downloads are for ZonoSoft account holders.</strong> Creating an account is free and takes a minute. The app needs a licence key, or email ZonoSoft@outlook.com for a free demo key to try it first.</p>
             <p><a class="btn" href="/account/register?next=${here}">Create a free account</a> <a class="btn quiet" href="/portal?next=${here}">Sign in</a></p>
           </div>`;
         const button = f => session.signedIn

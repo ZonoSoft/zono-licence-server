@@ -149,7 +149,7 @@ const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const day = s => s ? new Date(s).toLocaleDateString("en-GB", { day:"numeric", month:"long", year:"numeric" }) : "";
 const money = n => "£" + Number(n).toFixed(Number(n) % 1 ? 2 : 0);
-const planName = p => ({ monthly:"Monthly", yearly:"Yearly", lifetime:"Lifetime", trial:"Extended trial" })[p] || p;
+const planName = p => ({ monthly:"Monthly", yearly:"Yearly", lifetime:"Lifetime", trial:"Extended trial", demo:"Demo" })[p] || p;
 const statusName = s => ({ active:"Active", pending:"Waiting for payment", expired:"Expired", revoked:"Cancelled" })[s] || s;
 
 
@@ -218,11 +218,11 @@ async function load() {
     </dl>
     ${l.status === "pending" ? `<p class="note">Your licence starts as soon as you've paid. ${l.usedOn.length
         ? "Zono Workforce picks it up by itself — there's nothing to type in."
-        : "Then enter the key in Zono Workforce: Settings, then Licence."} Until then your free trial carries on.</p>` : ""}
+        : "Then enter the key in Zono Workforce: Settings, then Licence."}</p>` : ""}
     ${l.status === "expired" ? `<p class="note">This licence has run out, so Zono Workforce is read-only. Pay to carry on; the app picks it up by itself.</p>` : ""}
     ${!l.key && l.status !== "pending" ? `<p class="muted">The full key isn't shown for licences made before the portal opened. Contact us for a new key if you need it.</p>` : ""}
     ${payButton(l)}
-  `).join("<hr>") : me.payOnline ? `<p><strong>No licence yet.</strong> Choose a plan and pay online, then enter the key in Zono Workforce (Settings, then Licence). You can also use it free for 30 days first.</p>
+  `).join("<hr>") : me.payOnline ? `<p><strong>No licence yet.</strong> Choose a plan and pay online, then enter the key in Zono Workforce (Settings, then Licence). To try it first, email ZonoSoft@outlook.com for a free demo key.</p>
     <form id="buyForm">
       <div class="grid">
         <div><label for="bPlan">Plan</label><select id="bPlan"><option value="monthly">Monthly</option><option value="yearly">Yearly (2 months free)</option></select></div>
@@ -232,7 +232,7 @@ async function load() {
       <p><button class="primary" type="submit">Pay by card or PayPal</button></p>
     </form>` : `<p><strong>No licence yet.</strong></p>
     <ol class="muted" style="padding-left:1.2em">
-      <li><a href="/workforce/download">Download Zono Workforce</a> and use it free for 30 days.</li>
+      <li><a href="/workforce/download">Download Zono Workforce</a>. To try it before buying, email ZonoSoft@outlook.com for a free demo key.</li>
       <li>In the app, go to Settings, then Licence, then Buy a licence.</li>
       <li>Use this account's username and password there. The licence is added to this account.</li>
     </ol>`;

@@ -50,8 +50,8 @@
       <h2>What ZonoSoft's server receives</h2>
       <p>This applies to managers' devices running Zono Workforce and to team members' own phones and PCs running Zono Team.</p>
       <ul>
-        <li><strong>When an app starts, signs in or signs out:</strong> a one-way scrambled code made from the device's own ID (not the ID itself), the app name and version, the type of device (such as "Windows PC" or "Android device", never the device's own name), the business name entered in the app, and a code linking the devices of the same business. We use this to run the 30-day free trial fairly and to check licences.</li>
-        <li><strong>Update checks</strong> (about every 6 hours while an app is open): the scrambled device code, app name, version and type of device. When an update is downloaded, we record which file was downloaded and by which (scrambled) device.</li>
+        <li><strong>Licence checks</strong> (when Zono Workforce opens, signs in or out, and weekly, once a licence or demo key has been entered): the signed licence record the server issued, the business name entered in the app, a code linking the devices of the same business, the app version and the type of device (such as "Windows PC", never the device's own name). We use this to check licences and demo keys. Nothing is sent about a device that hasn't got a key, and there's no device code. The Zono Team app doesn't contact us, except to ask the time when the business is using a demo key (nothing is sent).</li>
+        <li><strong>Update checks</strong> (about every 6 hours while an app is open, once a key has been entered): the signed licence record, app name, version and platform, and a one-off code made for that check. Nothing is recorded.</li>
         <li><strong>Licence use:</strong> which types of device use a licence, their app version and when each last checked in.</li>
         <li><strong>Your ZonoSoft account:</strong> business name, email address, your name if you choose to give it, the username and password you choose (the password is stored only as a secure one-way hash), your licences (plan, team members, paid-until date) and a record of when you agreed to our terms.</li>
         <li><strong>Website downloads:</strong> which account downloaded which installer, and when.</li>
@@ -63,7 +63,7 @@
       <h2>Why we use it (lawful basis)</h2>
       <ul>
         <li>To provide your account, licences, downloads and updates: performance of a contract with you.</li>
-        <li>To run the free trial fairly, prevent misuse of licences and keep the service secure: our legitimate interests.</li>
+        <li>To prevent misuse of licences and demo keys and keep the service secure: our legitimate interests.</li>
         <li>To keep accounting and payment records: legal obligation.</li>
       </ul>
 
@@ -74,7 +74,6 @@
       <p>These are deleted automatically:</p>
       <ul>
         <li>Server activity records (sign-ins, downloads, update checks): after 12 months.</li>
-        <li>Trial records for a device (the scrambled code and dates): 2 years after the device was last seen.</li>
         <li>Records of a device that was removed from a licence: 2 years after it was last seen.</li>
         <li>Backups: after 30 days.</li>
       </ul>

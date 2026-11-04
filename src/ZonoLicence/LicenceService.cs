@@ -18,12 +18,26 @@ public sealed class LicenceService(LicenceStore store, TokenSigner signer, TimeP
     public const int TokenDays = 35;
     public const int IncludedTeamMembers = 5;
 
+    /// <summary>A demo key's token only lasts this long, so a demo needs the internet each time the app opens.</summary>
+    public static readonly TimeSpan DemoTokenLife = TimeSpan.FromHours(12);
+
+    private static readonly TimeZoneInfo Uk = FindUk();
+    private static TimeZoneInfo FindUk()
+    {
+        try { return TimeZoneInfo.FindSystemTimeZoneById("Europe/London"); }
+        catch (Exception e) when (e is TimeZoneNotFoundException or InvalidTimeZoneException) { return TimeZoneInfo.Utc; }
+    }
+
+    /// <summary>Today's date in the UK (GMT, or BST in summer): when paid-until and demo dates end.</summary>
+    public static DateOnly UkToday(DateTime utcNow) => DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(utcNow, Uk));
+
     public string Token(Licence l, string installId, string businessName)
     {
         var now = clock.GetUtcNow().UtcDateTime;
         var status = l.Status != "active" ? l.Status
-            : l.Expires is { } e && DateOnly.FromDateTime(now) > e ? "expired"
+            : l.Expires is { } e && UkToday(now) > e ? "expired"
             : "active";
+        var life = l.Plan == "demo" ? DemoTokenLife : TimeSpan.FromDays(TokenDays);
         var payload = new JsonObject
         {
             ["v"] = 1,
@@ -35,7 +49,7 @@ public sealed class LicenceService(LicenceStore store, TokenSigner signer, TimeP
             ["exp"] = l.Expires?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
             ["st"] = status,
             ["iat"] = now.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture),
-            ["until"] = now.AddDays(TokenDays).ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture)
+            ["until"] = now.Add(life).ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture)
         };
         return signer.Sign(payload.ToJsonString());
     }
