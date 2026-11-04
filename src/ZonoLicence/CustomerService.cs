@@ -46,9 +46,6 @@ public sealed partial class CustomerService(CustomerStore customers, LicenceStor
     [GeneratedRegex("^[A-Za-z0-9_-]{16,80}$")]
     private static partial Regex MachineIdPattern();
 
-    [GeneratedRegex(@"^\+[0-9]{1,4}(-[0-9]{1,4})?$")]
-    private static partial Regex DialCodePattern();
-
     private static bool ValidMachine(string? id) => id is not null && MachineIdPattern().IsMatch(id);
 
     /// <summary>The trial start for a machine: the earliest of it and any other machine of the same business.</summary>
@@ -89,13 +86,10 @@ public sealed partial class CustomerService(CustomerStore customers, LicenceStor
 
     private static string? CheckDetails(string business, string contact, string email, string dial, string phone)
     {
+        // Only what's needed to run an account: the business, an email to reach it, and (optionally) a name.
+        // Phone numbers are no longer asked for or kept (data minimisation); older apps may still send one.
         if (business.Length < 2) return "Enter the business name.";
-        if (contact.Length < 2) return "Enter the contact name.";
-        if (!MailAddress.TryCreate(email, out var mail) || !mail.Host.Contains('.', StringComparison.Ordinal)) return "Enter a valid contact email.";
-        if (!DialCodePattern().IsMatch(dial)) return "Choose the phone number's country code.";
-        var digits = new string(phone.Where(char.IsAsciiDigit).ToArray());
-        if (digits.Length is < 4 or > 15 || phone.Any(ch => !(char.IsAsciiDigit(ch) || ch is ' ' or '-' or '(' or ')')))
-            return "Enter a valid phone number (digits only, without the country code).";
+        if (!MailAddress.TryCreate(email, out var mail) || !mail.Host.Contains('.', StringComparison.Ordinal)) return "Enter a valid email address.";
         return null;
     }
 
@@ -146,7 +140,7 @@ public sealed partial class CustomerService(CustomerStore customers, LicenceStor
             account = known;
         }
         else
-            account = customers.CreateAccount(username, password, business, contact, email, dial, new string(phone.Where(char.IsAsciiDigit).ToArray()));
+            account = customers.CreateAccount(username, password, business, contact, email, "", "");
         var (licence, _) = licences.Create(business, "", plan, seats, null, 1, "Registered from the app", status: "pending", accountId: account.Id, secrets: secrets);
         licences.Activate(licence, installId, business, Clip(r.DeviceName, 80), m.Platform, m.AppVersion);
         customers.LinkMachine(m.Id, account.Id);
@@ -179,7 +173,7 @@ public sealed partial class CustomerService(CustomerStore customers, LicenceStor
         if (CheckPassword(username, password) is { } weak) return (400, new { ok = false, message = weak }, null);
         if (customers.UsernameTaken(username))
             return (409, new { ok = false, message = "That username already has an account. Sign in instead, or choose another username." }, null);
-        var account = customers.CreateAccount(username, password, business, contact, email, dial, new string(phone.Where(char.IsAsciiDigit).ToArray()));
+        var account = customers.CreateAccount(username, password, business, contact, email, "", "");
         licences.Log(null, "account created", account.Id + " (website)", ip);
         return (200, new { ok = true }, account.Id);
     }
@@ -210,7 +204,7 @@ public sealed partial class CustomerService(CustomerStore customers, LicenceStor
         return new
         {
             ok = true,
-            a.Username, a.BusinessName, a.ContactName, a.Email, a.PhoneCountry, a.Phone,
+            a.Username, a.BusinessName, a.ContactName, a.Email,
             created = a.CreatedUtc,
             payOnline = payments.Enabled,
             manageBilling = payments.Enabled && payments.HasCustomer(accountId),
@@ -269,7 +263,7 @@ public sealed partial class CustomerService(CustomerStore customers, LicenceStor
         var dial = Clip(r.PhoneCountry, 10);
         var phone = Clip(r.Phone, 30);
         if (CheckDetails(business, contact, email, dial, phone) is { } problem) return problem;
-        customers.UpdateDetails(accountId, business, contact, email, dial, new string(phone.Where(char.IsAsciiDigit).ToArray()));
+        customers.UpdateDetails(accountId, business, contact, email, "", "");
         return null;
     }
 

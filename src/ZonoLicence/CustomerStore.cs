@@ -62,6 +62,10 @@ public sealed class CustomerStore
                 expires TEXT NOT NULL);
             """;
         cmd.ExecuteNonQuery();
+        // Data minimisation (Nov 2026): phone numbers are no longer kept; clear any stored before
+        using var wipe = c.CreateCommand();
+        wipe.CommandText = "UPDATE accounts SET phone = '', phone_country = '' WHERE phone <> '' OR phone_country <> '';";
+        wipe.ExecuteNonQuery();
     }
 
     private SqliteConnection Open()

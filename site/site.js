@@ -82,8 +82,6 @@
   if (!form) return;
   const $ = id => document.getElementById(id);
   const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  $("rDial").innerHTML = (window.ZONO_COUNTRIES || []).map(([name, iso, code]) =>
-    `<option value="${esc(code)}"${iso === "GB" ? " selected" : ""}>${esc(name)} (${esc(code)})</option>`).join("");
   form.addEventListener("input", e => e.target.removeAttribute("aria-invalid"));
   let userTouched = false;
   $("rUser").addEventListener("input", () => { userTouched = true; });
@@ -97,8 +95,7 @@
   form.addEventListener("submit", async e => {
     e.preventDefault();
     $("rError").hidden = true;
-    const required = [["rBusiness", "Enter the business name."], ["rContact", "Enter your name."], ["rEmail", "Enter your email address."],
-                      ["rPhone", "Enter your phone number."], ["rUser", "Choose a username."], ["rPass", "Choose a password."]];
+    const required = [["rBusiness", "Enter the business name."], ["rEmail", "Enter your email address."], ["rUser", "Choose a username."], ["rPass", "Choose a password."]];
     for (const [id, msg] of required) if (!$(id).value.trim()) return fail(msg, $(id));
     if ($("rPass").value.length < 10) return fail("The password needs at least 10 characters.", $("rPass"));
     if ($("rPass").value !== $("rPass2").value) return fail("The two passwords don't match.", $("rPass2"));
@@ -107,8 +104,7 @@
     try {
       const r = await fetch("/api/portal/register", {
         method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ businessName: $("rBusiness").value, contactName: $("rContact").value, email: $("rEmail").value,
-          phoneCountry: $("rDial").value, phone: $("rPhone").value, username: $("rUser").value, password: $("rPass").value, acceptTerms: true })
+        body: JSON.stringify({ businessName: $("rBusiness").value, contactName: $("rContact").value, email: $("rEmail").value, username: $("rUser").value, password: $("rPass").value, acceptTerms: true })
       });
       let j = {}; try { j = await r.json(); } catch {}
       if (r.ok && j.ok) {
