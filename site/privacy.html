@@ -34,43 +34,68 @@
 <section style="padding-top:56px">
   <div class="wrap">
     <article class="doc">
+
       <h1>Privacy</h1>
-      <p class="small">Last updated 3 November 2026</p>
-      <p>This explains what personal information ZonoSoft handles, why, and your rights. ZonoSoft is the data controller for the information described here. Contact: <a href="mailto:ZonoSoft@outlook.com">ZonoSoft@outlook.com</a>.</p>
+      <p class="small">Last updated 4 November 2026</p>
+      <p>This explains what personal information ZonoSoft handles, why, how long it's kept and your rights.</p>
+
+      <h2>Who we are</h2>
+      <p>ZonoSoft is the trading name of James Turner, a sole trader, of Flat 2, 4 Wooperton Street, Weymouth, Dorset DT4 7DX, United Kingdom. We are the controller of the information described on this page. Contact: <a href="mailto:ZonoSoft@outlook.com">ZonoSoft@outlook.com</a>.</p>
 
       <h2>Your business's data in the apps</h2>
-      <p>Rotas, staff details, clock times, holidays and payroll hours are stored on your own devices, encrypted, and (if you choose) in your own OneDrive, Google Drive or network folder. ZonoSoft does not receive, store or have access to this data. Your business is the controller of it, and is responsible for telling its staff how it is used.</p>
-      <p>Fingerprint, face and Windows Hello checks happen inside the device. The apps never receive or store biometric data.</p>
+      <p>Rotas, staff details, clock times (including where someone was when they clocked in or out), holidays, timesheets and payroll hours are stored on your own devices, encrypted, and, if you choose, in your own OneDrive, Google Drive or network folder. <strong>ZonoSoft does not receive, store or have access to this data.</strong> Your business is its controller and is responsible for telling its staff how it's used; our <a href="/workforce/employers">page for employers</a> has a template you can use.</p>
+      <p>Fingerprint, face and Windows Hello checks happen inside the phone or PC. The apps only get a yes or no; they never receive or store biometric data, and neither do we.</p>
+      <p>On Android, scanning a join or team code uses Google's code scanner (part of Google Play services). The app never sees the camera picture, only the scanned text; Google may collect statistics about the scanner's use under <a href="https://policies.google.com/privacy" rel="noopener">Google's privacy policy</a>.</p>
 
       <h2>What ZonoSoft's server receives</h2>
+      <p>This applies to managers' devices running Zono Workforce and to team members' own phones and PCs running Zono Team.</p>
       <ul>
-        <li><strong>Every time an app starts, signs in or signs out:</strong> a one-way scrambled code made from the device's own ID (not the ID itself), the app name and version, the type of device (for example Windows or Android), the business name entered in the app, and the device's internet address. We use this to run the free trial fairly and to check licences.</li>
-        <li><strong>When you create an account or buy a licence:</strong> business name, contact name, contact email, phone number, the username and password you choose (the password is stored only as a secure one-way hash) and, for a licence, your plan and number of team members.</li>
-        <li><strong>When you use your account at zonosoft.co.uk/portal:</strong> a sign-in cookie that keeps you signed in for up to 12 hours. We don't use advertising or tracking cookies, and this website loads nothing from other companies.</li>
+        <li><strong>When an app starts, signs in or signs out:</strong> a one-way scrambled code made from the device's own ID (not the ID itself), the app name and version, the type of device (such as "Windows PC" or "Android device", never the device's own name), the business name entered in the app, a code linking the devices of the same business, and the device's internet (IP) address. We use this to run the 30-day free trial fairly and to check licences.</li>
+        <li><strong>Update checks</strong> (about every 6 hours while an app is open): the scrambled device code, app name, version, type of device and internet address. When an update is downloaded, we record which file was downloaded and by which (scrambled) device.</li>
+        <li><strong>Licence use:</strong> which types of device use a licence, their app version and when each last checked in.</li>
+        <li><strong>Your ZonoSoft account:</strong> business name, contact name, contact email, phone number, the username and password you choose (the password is stored only as a secure one-way hash), your licences (plan, team members, paid-until date) and a record of when you agreed to our terms.</li>
+        <li><strong>Website downloads:</strong> which account downloaded which installer, when, and from which internet address.</li>
+        <li><strong>Payments:</strong> paid through Stripe (see below). We keep Stripe's reference numbers for your customer record and subscription, and the dates your licence is paid for. We never see your card or PayPal details.</li>
+        <li><strong>Cookies:</strong> one cookie that keeps you signed in to your account for up to 12 hours. It's needed for the account to work, so we don't ask for consent. We don't use advertising, analytics or tracking cookies, and this website loads nothing from other companies.</li>
       </ul>
+      <p>We don't send marketing emails, sell personal information or make automated decisions about you.</p>
 
       <h2>Why we use it (lawful basis)</h2>
       <ul>
-        <li>To provide and check your licence and account: performance of a contract.</li>
-        <li>To run the free trial, prevent misuse and keep the service secure: our legitimate interests.</li>
-        <li>To keep records we must keep, such as payments: legal obligation.</li>
+        <li>To provide your account, licences, downloads and updates: performance of a contract with you.</li>
+        <li>To run the free trial fairly, prevent misuse of licences and keep the service secure: our legitimate interests.</li>
+        <li>To keep accounting and payment records: legal obligation.</li>
       </ul>
 
       <h2>How it's protected</h2>
-      <p>The server is in the United Kingdom (IONOS). Contact details, phone numbers and licence keys are encrypted in the database (AES-256), connections use HTTPS, and access is limited to ZonoSoft. Daily backups are kept on the same server for 30 days.</p>
+      <p>The server is in the United Kingdom (IONOS). Contact details, phone numbers and licence keys are encrypted in the database (AES-256), passwords are stored only as one-way hashes, connections use HTTPS, and access is limited to ZonoSoft. Backups are kept on the same server for 30 days.</p>
 
       <h2>How long we keep it</h2>
+      <p>These are deleted automatically:</p>
       <ul>
-        <li>Account and licence details: while you're a customer, and up to 6 years after for accounting records.</li>
-        <li>Trial records (the scrambled device code and dates): up to 2 years after the device was last seen.</li>
-        <li>Server logs and activity records: up to 12 months.</li>
+        <li>Server activity records (sign-ins, downloads, update checks): after 12 months.</li>
+        <li>Trial records for a device (the scrambled code and dates): 2 years after the device was last seen.</li>
+        <li>Records of a device that was removed from a licence: 2 years after it was last seen.</li>
+        <li>Backups: after 30 days.</li>
       </ul>
+      <p>Your account, licence, payment and terms-acceptance records are kept while you're a customer and for up to 6 years afterwards, for accounting and legal records. You can ask us to close your account sooner; we'll keep only what the law requires.</p>
 
       <h2>Who we share it with</h2>
-      <p>No one, except our hosting provider (IONOS), which runs the server for us; Stripe, which takes card and PayPal payments for us (when you pay, you give your payment details to Stripe on its own page, and Stripe tells us the payment was made — we never see your card number); and where the law requires it. We don't sell personal information.</p>
+      <ul>
+        <li><strong>IONOS</strong> runs our server in the UK on our behalf, under a data processing agreement.</li>
+        <li><strong>Stripe</strong> takes card and PayPal payments. You give your payment details to Stripe on its own page, and Stripe tells us the payment was made. Stripe is responsible for the payment details it collects and may process them in the United States under UK-approved safeguards; see <a href="https://stripe.com/gb/privacy" rel="noopener">Stripe's privacy policy</a>.</li>
+        <li>Anyone the law requires us to share it with.</li>
+      </ul>
 
       <h2>Your rights</h2>
-      <p>You can ask for a copy of your information, ask us to correct or delete it, object to or restrict how we use it, and ask for it in a portable format. You can update your contact details yourself in your account. To use any of these rights, email <a href="mailto:ZonoSoft@outlook.com">ZonoSoft@outlook.com</a>. If you're unhappy with how we handle your information, you can complain to the Information Commissioner's Office at <a href="https://ico.org.uk" rel="noopener">ico.org.uk</a>.</p>
+      <p>You can ask for a copy of your information, ask us to correct or delete it, object to or restrict how we use it, and ask for it in a portable format. You can change your contact details yourself in your account. To use any of these rights, email <a href="mailto:ZonoSoft@outlook.com">ZonoSoft@outlook.com</a> or write to us at the address above. We'll reply within one month.</p>
+
+      <h2>Complaints</h2>
+      <p>If you're unhappy with how we handle your information, please tell us first, by email, post or any other way. We'll acknowledge your complaint within 30 days, look into it, keep you updated and tell you the outcome. You can also complain to the Information Commissioner's Office at <a href="https://ico.org.uk/make-a-complaint/" rel="noopener">ico.org.uk</a> or on 0303 123 1113.</p>
+
+      <h2>Changes</h2>
+      <p>We'll update this page when what we do changes, and show the date at the top. Important changes are also shown in your account.</p>
+
     </article>
   </div>
 </section>
@@ -81,6 +106,7 @@
     <div>
       <a class="brand" href="/" style="color:#fff"><svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#0d6660"/><path d="M9 9.5h14a2 2 0 0 1 2 2V23a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2V11.5a2 2 0 0 1 2-2Zm-2 5h18M12 7v4M20 7v4" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>ZonoSoft</span></a>
       <p style="margin-top:14px">Practical software for small businesses. Made in Dorset, UK.</p>
+      <p class="small" style="color:#a9b8b3">ZonoSoft is the trading name of James Turner, Flat 2, 4 Wooperton Street, Weymouth, Dorset DT4 7DX. <a href="mailto:ZonoSoft@outlook.com" style="color:#d8ece8">ZonoSoft@outlook.com</a></p>
       <p class="small" style="color:#a9b8b3">&copy; 2026 ZonoSoft. All rights reserved.</p>
     </div>
     <div>
@@ -89,6 +115,8 @@
         <li><a href="/workforce">Zono Workforce</a></li>
         <li><a href="/workforce#team">Zono Team</a></li>
         <li><a href="/workforce/download">Downloads</a></li>
+        <li><a href="/workforce/guides">Guides</a></li>
+        <li><a href="/workforce/employers">For employers</a></li>
       </ul>
     </div>
     <div>

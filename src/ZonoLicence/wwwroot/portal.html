@@ -42,6 +42,8 @@
   .note { background:var(--warn-soft); border-radius:10px; padding:12px 14px; }
   .hidden { display:none !important; }
   .narrow { max-width:420px; margin:40px auto; }
+  .agree { display:flex; gap:10px; align-items:flex-start; font-size:15px; font-weight:400; color:var(--ink); margin:16px 0 4px; }
+  .agree input { width:auto; margin-top:4px; }
   .tabs { display:flex; gap:6px; flex-wrap:wrap; margin:18px 0 16px; border-bottom:1px solid var(--line); }
   .tabs button { border:0; border-bottom:3px solid transparent; border-radius:0; background:none; padding:10px 14px; color:var(--muted); }
   .tabs button[aria-selected="true"] { color:var(--accent); border-bottom-color:var(--accent); }
@@ -249,6 +251,14 @@ async function load() {
       <li>In the app, go to Settings, then Licence, then Buy a licence.</li>
       <li>Use this account's username and password there. The licence is added to this account.</li>
     </ol>`;
+  // Licences are sold to businesses: the buyer confirms that, and the terms, before paying (recorded on the server)
+  if (me.payOnline && ($("buyForm") || me.licences.some(payable))) {
+    const box = `<label class="agree"><input type="checkbox" id="bizOk">
+        <span>I'm buying for my business (not as a consumer) and I agree to the <a href="/terms" target="_blank" rel="noopener">terms</a>.</span></label>`;
+    // just above the first Pay button
+    const firstPay = $("licences").querySelector("#buyForm button[type=submit], button[data-pay]");
+    firstPay.closest("p").insertAdjacentHTML("beforebegin", box);
+  }
   if ($("buyForm")) {
     const price = () => {
       const seats = Math.max(5, parseInt($("bSeats").value || "5", 10) || 5), yearly = $("bPlan").value === "yearly";
@@ -284,6 +294,12 @@ function flash(text, bad) {
 
 // Off to Stripe's checkout page
 async function pay(body) {
+  if (!$("bizOk")?.checked) {
+    flash("Please tick the box to confirm you're buying for your business and agree to the terms.", true);
+    $("bizOk")?.focus();
+    return;
+  }
+  body.forBusiness = true;
   flash("Opening the secure payment page…");
   const j = await call("/checkout", body);
   if (j.ok && j.url) { location.href = j.url; return; }

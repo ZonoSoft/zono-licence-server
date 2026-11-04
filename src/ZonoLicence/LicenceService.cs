@@ -70,7 +70,7 @@ public sealed class LicenceService(LicenceStore store, TokenSigner signer, TimeP
             return new(409, null, "in_use",
                 "This licence key is already in use for another business or PC. Deactivate it there first (Settings → Licence), or contact ZonoSoft to move it.");
         }
-        store.Log(licence.Id, "activated", $"{business} · {Clip(r.DeviceName, 80)} · {Clip(r.AppVersion, 20)}", ip);
+        store.Log(licence.Id, "activated", $"{business} · {LicenceStore.DeviceLabel(r.Platform)} · {Clip(r.AppVersion, 20)}", ip);
         return new(200, Token(licence, installId, business), null, null);
     }
 

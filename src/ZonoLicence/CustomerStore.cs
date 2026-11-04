@@ -118,6 +118,14 @@ public sealed class CustomerStore
         return list;
     }
 
+    /// <summary>Trial records of devices not seen for 2 years are deleted (as the privacy notice says).</summary>
+    public int PruneMachines(DateTime nowUtc)
+    {
+        using var c = Open();
+        using var cmd = Command(c, "DELETE FROM machines WHERE last_seen < $t;", ("$t", Iso(nowUtc.AddYears(-2))));
+        return cmd.ExecuteNonQuery();
+    }
+
     public void LinkMachine(string machineId, string accountId)
     {
         using var c = Open();

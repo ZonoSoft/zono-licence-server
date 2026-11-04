@@ -16,7 +16,13 @@ public sealed record WebRegisterRequest(string? BusinessName, string? ContactNam
     string? Username, string? Password, bool? AcceptTerms);
 public sealed record DetailsRequest(string? BusinessName, string? ContactName, string? Email, string? PhoneCountry, string? Phone);
 public sealed record PasswordRequest(string? Current, string? New);
-public sealed record BuyRequest(string? LicenceId, string? Plan, int? TeamSeats);
+public sealed record BuyRequest(string? LicenceId, string? Plan, int? TeamSeats, bool? ForBusiness);
+
+/// <summary>The terms customers agree to (the date on zonosoft.co.uk/terms).</summary>
+public static class Terms
+{
+    public const string Version = "4 November 2026";
+}
 public sealed record StripeKeyRequest(string? SecretKey);
 
 /// <summary>

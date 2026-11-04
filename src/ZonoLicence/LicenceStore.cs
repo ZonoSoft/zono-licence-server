@@ -63,6 +63,65 @@ public sealed class LicenceStore
         // v2: licences belong to a customer account; the key is also kept encrypted so the customer can see it in the portal
         AddColumn(c, "licences", "account_id", "TEXT NULL");
         AddColumn(c, "licences", "key_enc", "TEXT NOT NULL DEFAULT ''");
+
+        // v3 (data minimisation): devices are only described by type, never by the computer's own name
+        Exec(c, $"UPDATE activations SET device_name = {DeviceLabelSql} WHERE device_name <> {DeviceLabelSql};");
+        ScrubActivationEvents(c);
+    }
+
+    /// <summary>"Windows PC", "Android device"… — what the portal shows instead of a computer's own name.</summary>
+    public static string DeviceLabel(string? platform) => (platform ?? "").ToLowerInvariant() switch
+    {
+        "windows" => "Windows PC",
+        "android" => "Android device",
+        "ios" => "iPhone or iPad",
+        "mac" => "Mac",
+        "linux" => "Linux PC",
+        _ => "Device"
+    };
+
+    private const string DeviceLabelSql = """
+        CASE lower(platform) WHEN 'windows' THEN 'Windows PC' WHEN 'android' THEN 'Android device' WHEN 'ios' THEN 'iPhone or iPad'
+        WHEN 'mac' THEN 'Mac' WHEN 'linux' THEN 'Linux PC' ELSE 'Device' END
+        """;
+
+    /// <summary>Older "activated" log lines held the computer's name ("business · device · version"): remove it.</summary>
+    private static void ScrubActivationEvents(SqliteConnection c)
+    {
+        var rows = new List<(long Id, string Detail)>();
+        using (var cmd = c.CreateCommand())
+        {
+            cmd.CommandText = "SELECT id, detail FROM events WHERE what = 'activated';";
+            using var r = cmd.ExecuteReader();
+            while (r.Read()) rows.Add((r.GetInt64(0), r.GetString(1)));
+        }
+        foreach (var (id, detail) in rows)
+        {
+            var parts = detail.Split(" · ");
+            if (parts.Length < 3 || parts[^2] is "Windows PC" or "Android device" or "iPhone or iPad" or "Mac" or "Linux PC" or "Device") continue;
+            using var cmd = c.CreateCommand();
+            cmd.CommandText = "UPDATE events SET detail = $d WHERE id = $id;";
+            cmd.Parameters.AddWithValue("$d", string.Join(" · ", parts[..^2]) + " · " + parts[^1]);
+            cmd.Parameters.AddWithValue("$id", id);
+            cmd.ExecuteNonQuery();
+        }
+    }
+
+    /// <summary>
+    /// Deletes what the privacy notice says isn't kept: activity records older than 12 months, and devices released
+    /// from a licence over 2 years ago. Returns how many rows went.
+    /// </summary>
+    public int Prune(DateTime nowUtc)
+    {
+        using var c = Open();
+        using var cmd = c.CreateCommand();
+        cmd.CommandText = """
+            DELETE FROM events WHERE at < $year;
+            DELETE FROM activations WHERE released = 1 AND last_seen < $two;
+            """;
+        cmd.Parameters.AddWithValue("$year", nowUtc.AddMonths(-12).ToString("O", CultureInfo.InvariantCulture));
+        cmd.Parameters.AddWithValue("$two", nowUtc.AddYears(-2).ToString("O", CultureInfo.InvariantCulture));
+        return cmd.ExecuteNonQuery();
     }
 
     private static void AddColumn(SqliteConnection c, string table, string column, string type)
@@ -249,6 +308,7 @@ public sealed class LicenceStore
     /// <summary>Records (or refreshes) an activation for an install. False when the licence has no free activations.</summary>
     public bool Activate(Licence licence, string installId, string businessName, string deviceName, string platform, string appVersion)
     {
+        deviceName = DeviceLabel(platform);   // never the computer's own name (older apps still send it)
         var current = Activations(licence.Id, includeReleased: false);
         var existing = current.FirstOrDefault(a => a.InstallId == installId);
         using var c = Open();

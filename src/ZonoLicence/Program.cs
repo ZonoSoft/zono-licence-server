@@ -24,6 +24,7 @@ builder.Services.AddSingleton(sp => new CustomerStore(Path.Combine(dataDir, "lic
 builder.Services.AddSingleton(sp => new Payments(dataDir, Path.Combine(dataDir, "licences.db"), sp.GetRequiredService<Secrets>(),
     sp.GetRequiredService<LicenceStore>(), sp.GetRequiredService<CustomerStore>()));
 builder.Services.AddSingleton<CustomerService>();
+builder.Services.AddHostedService<Retention>();
 builder.Services.AddSingleton(_ => new Downloads(Path.Combine(dataDir, "downloads")));
 builder.Services.Configure<ForwardedHeadersOptions>(o =>
 {
@@ -241,11 +242,14 @@ mine.MapPost("/password", (PasswordRequest r, CustomerService svc, CustomerStore
 });
 
 // Paying online (Stripe's checkout page: card, PayPal, Apple Pay / Google Pay as turned on in Stripe)
-mine.MapPost("/checkout", async (BuyRequest r, CustomerService svc, CustomerStore store, Payments pay, HttpContext c) =>
+mine.MapPost("/checkout", async (BuyRequest r, CustomerService svc, CustomerStore store, Payments pay, LicenceStore log, HttpContext c) =>
 {
     var id = (string)c.Items["account"]!;
+    if (r.ForBusiness != true)
+        return Results.Json(new { ok = false, message = "Please confirm you're buying for your business and agree to the terms." }, statusCode: 400);
     var (licence, problem) = svc.LicenceToPay(id, r);
     if (licence is null) return Results.Json(new { ok = false, message = problem }, statusCode: 400);
+    log.Log(licence.Id, "terms accepted", $"business purchase · terms of {Terms.Version} · account {id}", Ip(c));
     var (url, payProblem) = await pay.CheckoutAsync(licence, store.GetAccount(id)!, c.RequestAborted);
     return url is null ? Results.Json(new { ok = false, message = payProblem }, statusCode: 400) : Results.Json(new { ok = true, url });
 });

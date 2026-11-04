@@ -1,7 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url><loc>https://zonosoft.co.uk/</loc></url>
-  <url><loc>https://zonosoft.co.uk/download</loc></url>
+  <url><loc>https://zonosoft.co.uk/about</loc></url>
+  <url><loc>https://zonosoft.co.uk/contact</loc></url>
+  <url><loc>https://zonosoft.co.uk/workforce</loc></url>
+  <url><loc>https://zonosoft.co.uk/workforce/download</loc></url>
+  <url><loc>https://zonosoft.co.uk/workforce/guides</loc></url>
+  <url><loc>https://zonosoft.co.uk/workforce/guides/workforce-windows</loc></url>
+  <url><loc>https://zonosoft.co.uk/workforce/guides/workforce-android</loc></url>
+  <url><loc>https://zonosoft.co.uk/workforce/guides/team-windows</loc></url>
+  <url><loc>https://zonosoft.co.uk/workforce/guides/team-android</loc></url>
+  <url><loc>https://zonosoft.co.uk/workforce/employers</loc></url>
+  <url><loc>https://zonosoft.co.uk/account/register</loc></url>
   <url><loc>https://zonosoft.co.uk/privacy</loc></url>
   <url><loc>https://zonosoft.co.uk/terms</loc></url>
 </urlset>

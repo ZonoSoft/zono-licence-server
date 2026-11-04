@@ -235,3 +235,15 @@ section { padding: 80px 0; }
 .form-box .btn { margin-top: 22px; width: 100%; }
 .dl-gate { margin-bottom: 24px; }
 .dl-gate .btn { margin: 6px 8px 0 0; }
+
+/* ---------- Guides and the employers page ---------- */
+.guide-toc { columns: 2 220px; padding-left: 1.3em; margin: 8px 0 8px; }
+.guide-toc li { margin: 4px 0; break-inside: avoid; }
+.doc h2[id] { scroll-margin-top: 80px; }
+.guide-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin: 24px 0; }
+.guide-card { display: flex; flex-direction: column; gap: 6px; padding: 20px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper); color: var(--ink); text-decoration: none; }
+.guide-card strong { font-family: var(--wide); font-stretch: 110%; font-size: 1.1rem; color: var(--teal-deep); }
+.guide-card span { color: var(--muted); font-size: 0.95rem; }
+.guide-card:hover { border-color: var(--teal); }
+.note-box { background: #f4f7f5; border: 1px dashed var(--line); border-radius: 10px; padding: 18px 20px; max-width: 70ch; }
+.note-box p { margin: 0 0 10px; }
