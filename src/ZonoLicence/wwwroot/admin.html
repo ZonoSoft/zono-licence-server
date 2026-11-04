@@ -193,7 +193,7 @@ async function load() {
   const machines = await api("/machines");
   $("machines").innerHTML = machines.map(m => `<tr><td>${esc(m.businessName || "—")}</td><td>${esc(m.product)} · ${esc(m.platform)} ${esc(m.appVersion)}</td><td>${esc(m.trialStarted)}</td><td>${when(m.firstSeenUtc)}</td><td>${when(m.lastSeenUtc)}</td><td>${m.launches}</td><td>${m.registered ? "Yes" : ""}</td></tr>`).join("") || `<tr><td colspan="7" class="muted">None yet.</td></tr>`;
   const ev = await api("/events");
-  $("events").innerHTML = ev.map(e => `<tr><td class="muted">${when(e.at)}</td><td>${esc(e.what)}</td><td>${esc(e.detail)}</td><td class="muted">${esc(e.licenceId || "")} ${esc(e.ip)}</td></tr>`).join("");
+  $("events").innerHTML = ev.map(e => `<tr><td class="muted">${when(e.at)}</td><td>${esc(e.what)}</td><td>${esc(e.detail)}</td><td class="muted">${esc(e.licenceId || "")}</td></tr>`).join("");
   window.licences = list;
 }
 

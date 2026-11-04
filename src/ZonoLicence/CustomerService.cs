@@ -102,7 +102,7 @@ public sealed partial class CustomerService(CustomerStore customers, LicenceStor
     }
 
     /// <summary>From the app: makes the customer's portal account and their licence (waiting for payment) for this business.</summary>
-    public (int Status, object Body) Register(RegisterRequest r, string ip)
+    public (int Status, object Body) Register(RegisterRequest r)
     {
         if (!ValidMachine(r.MachineId)) return (400, new { ok = false, error = "bad_machine", message = "Missing machine id." });
         var installId = Clip(r.InstallId, 64);
@@ -144,7 +144,7 @@ public sealed partial class CustomerService(CustomerStore customers, LicenceStor
         var (licence, _) = licences.Create(business, "", plan, seats, null, 1, "Registered from the app", status: "pending", accountId: account.Id, secrets: secrets);
         licences.Activate(licence, installId, business, Clip(r.DeviceName, 80), m.Platform, m.AppVersion);
         customers.LinkMachine(m.Id, account.Id);
-        licences.Log(licence.Id, "registered", $"{business} · {plan} · {seats} team members · account {account.Id}", ip);
+        licences.Log(licence.Id, "registered", $"{business} · {plan} · {seats} team members · account {account.Id}");
         var price = Price(plan, seats).ToString("0.##", CultureInfo.InvariantCulture);
         return (200, new
         {
@@ -157,7 +157,7 @@ public sealed partial class CustomerService(CustomerStore customers, LicenceStor
     }
 
     /// <summary>From the website: a ZonoSoft account without a licence yet (the app's "Buy a licence" adds one to it).</summary>
-    public (int Status, object Body, string? AccountId) WebRegister(WebRegisterRequest r, string ip)
+    public (int Status, object Body, string? AccountId) WebRegister(WebRegisterRequest r)
     {
         var business = Clip(r.BusinessName, 80);
         var contact = Clip(r.ContactName, 80);
@@ -174,13 +174,13 @@ public sealed partial class CustomerService(CustomerStore customers, LicenceStor
         if (customers.UsernameTaken(username))
             return (409, new { ok = false, message = "That username already has an account. Sign in instead, or choose another username." }, null);
         var account = customers.CreateAccount(username, password, business, contact, email, "", "");
-        licences.Log(null, "account created", account.Id + " (website)", ip);
+        licences.Log(null, "account created", account.Id + " (website)");
         return (200, new { ok = true }, account.Id);
     }
 
     // ---------- Portal ----------
 
-    public (string? AccountId, string? Problem) Login(LoginRequest r, string ip)
+    public (string? AccountId, string? Problem) Login(LoginRequest r)
     {
         var username = Clip(r.Username, 120);
         var password = r.Password ?? "";
@@ -194,7 +194,7 @@ public sealed partial class CustomerService(CustomerStore customers, LicenceStor
             return (null, "Too many wrong passwords. Try again in 15 minutes.");
         var ok = Secrets.CheckPassword(password, account.PasswordHash);
         customers.LoginResult(account.Id, ok);
-        licences.Log(null, ok ? "portal-login" : "portal-login-failed", account.Id, ip);
+        licences.Log(null, ok ? "portal-login" : "portal-login-failed", account.Id);
         return ok ? (account.Id, null) : (null, "That username or password isn't right.");
     }
 
@@ -251,7 +251,7 @@ public sealed partial class CustomerService(CustomerStore customers, LicenceStor
         }
         var (licence, _) = licences.Create(account.BusinessName, account.Email, plan, seats, null, 1, "Bought on the website",
             status: "pending", accountId: accountId, secrets: secrets);
-        licences.Log(licence.Id, "registered", $"{account.BusinessName} · {plan} · {seats} team members · account {accountId} (website)", "");
+        licences.Log(licence.Id, "registered", $"{account.BusinessName} · {plan} · {seats} team members · account {accountId} (website)");
         return (licence, null);
     }
 

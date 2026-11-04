@@ -67,6 +67,9 @@ public sealed class LicenceStore
         // v3 (data minimisation): devices are only described by type, never by the computer's own name
         Exec(c, $"UPDATE activations SET device_name = {DeviceLabelSql} WHERE device_name <> {DeviceLabelSql};");
         ScrubActivationEvents(c);
+
+        // v4: IP addresses are never kept. Clear any recorded before, and squeeze them out of the file.
+        if (Exec(c, "UPDATE events SET ip = '' WHERE ip <> '';") > 0) Exec(c, "VACUUM;");
     }
 
     /// <summary>"Windows PC", "Android device"… — what the portal shows instead of a computer's own name.</summary>
@@ -138,11 +141,11 @@ public sealed class LicenceStore
         return c;
     }
 
-    private static void Exec(SqliteConnection c, string sql)
+    private static int Exec(SqliteConnection c, string sql)
     {
         using var cmd = c.CreateCommand();
         cmd.CommandText = sql;
-        cmd.ExecuteNonQuery();
+        return cmd.ExecuteNonQuery();
     }
 
     private static string Now() => DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture);
@@ -360,28 +363,27 @@ public sealed class LicenceStore
 
     // ---------- Log ----------
 
-    public void Log(string? licenceId, string what, string detail, string ip)
+    public void Log(string? licenceId, string what, string detail)
     {
         using var c = Open();
         using var cmd = c.CreateCommand();
-        cmd.CommandText = "INSERT INTO events(at, licence_id, what, detail, ip) VALUES ($a,$l,$w,$d,$i);";
+        cmd.CommandText = "INSERT INTO events(at, licence_id, what, detail) VALUES ($a,$l,$w,$d);";
         cmd.Parameters.AddWithValue("$a", Now());
         cmd.Parameters.AddWithValue("$l", (object?)licenceId ?? DBNull.Value);
         cmd.Parameters.AddWithValue("$w", what);
         cmd.Parameters.AddWithValue("$d", detail);
-        cmd.Parameters.AddWithValue("$i", ip);
         cmd.ExecuteNonQuery();
     }
 
-    public List<(string At, string? LicenceId, string What, string Detail, string Ip)> Events(int limit = 200)
+    public List<(string At, string? LicenceId, string What, string Detail)> Events(int limit = 200)
     {
         using var c = Open();
         using var cmd = c.CreateCommand();
-        cmd.CommandText = "SELECT at, licence_id, what, detail, ip FROM events ORDER BY id DESC LIMIT $n;";
+        cmd.CommandText = "SELECT at, licence_id, what, detail FROM events ORDER BY id DESC LIMIT $n;";
         cmd.Parameters.AddWithValue("$n", limit);
         using var r = cmd.ExecuteReader();
-        var list = new List<(string, string?, string, string, string)>();
-        while (r.Read()) list.Add((r.GetString(0), r.IsDBNull(1) ? null : r.GetString(1), r.GetString(2), r.GetString(3), r.GetString(4)));
+        var list = new List<(string, string?, string, string)>();
+        while (r.Read()) list.Add((r.GetString(0), r.IsDBNull(1) ? null : r.GetString(1), r.GetString(2), r.GetString(3)));
         return list;
     }
 

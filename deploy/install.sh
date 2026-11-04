@@ -162,6 +162,14 @@ find /var/backups/zono-licence -name 'licences-*.db' -mtime +30 -delete
 BACKUP
 chmod 755 /etc/cron.daily/zono-licence-backup
 
+# IP addresses are never kept: clear any in older backups too
+for f in /var/backups/zono-licence/licences-*.db; do
+  [ -f "$f" ] || continue
+  if [ "$(sqlite3 "$f" "SELECT count(*) FROM events WHERE ip <> '';" 2>/dev/null || echo 0)" != "0" ]; then
+    sqlite3 "$f" "UPDATE events SET ip = '' WHERE ip <> ''; VACUUM;" && echo "== Cleared IP addresses from $(basename "$f")"
+  fi
+done
+
 # Updates itself: every 15 minutes, if the code on GitHub has changed (or the web addresses' DNS has), install again
 install -m 0755 /dev/stdin /usr/local/sbin/zono-licence-update <<'UPDATE'
 #!/bin/bash

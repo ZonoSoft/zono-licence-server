@@ -42,7 +42,7 @@ public sealed class LicenceService(LicenceStore store, TokenSigner signer, TimeP
 
     private static string Clip(string? s, int max) => (s ?? "").Trim() is var t && t.Length > max ? t[..max] : (s ?? "").Trim();
 
-    public ApiResult Activate(ActivateRequest r, string ip)
+    public ApiResult Activate(ActivateRequest r)
     {
         var installId = Clip(r.InstallId, 64);
         if (string.IsNullOrWhiteSpace(r.Key) || installId.Length < 8)
@@ -50,27 +50,27 @@ public sealed class LicenceService(LicenceStore store, TokenSigner signer, TimeP
         var licence = store.FindByKey(r.Key);
         if (licence is null)
         {
-            store.Log(null, "activate-failed", "unknown key", ip);
+            store.Log(null, "activate-failed", "unknown key");
             return new(404, null, "unknown_key", "That licence key wasn't found. Check it and try again.");
         }
         if (licence.Status == "revoked")
         {
-            store.Log(licence.Id, "activate-failed", "revoked", ip);
+            store.Log(licence.Id, "activate-failed", "revoked");
             return new(403, null, "revoked", "This licence has been cancelled. Contact ZonoSoft.");
         }
         if (licence.Status == "pending")
         {
-            store.Log(licence.Id, "activate-failed", "waiting for payment", ip);
+            store.Log(licence.Id, "activate-failed", "waiting for payment");
             return new(402, null, "awaiting_payment", "This licence is waiting for payment. It starts by itself once payment is received.");
         }
         var business = Clip(r.BusinessName, 80);
         if (!store.Activate(licence, installId, business, Clip(r.DeviceName, 80), Clip(r.Platform, 20), Clip(r.AppVersion, 20)))
         {
-            store.Log(licence.Id, "activate-failed", "no free activations", ip);
+            store.Log(licence.Id, "activate-failed", "no free activations");
             return new(409, null, "in_use",
                 "This licence key is already in use for another business or PC. Deactivate it there first (Settings → Licence), or contact ZonoSoft to move it.");
         }
-        store.Log(licence.Id, "activated", $"{business} · {LicenceStore.DeviceLabel(r.Platform)} · {Clip(r.AppVersion, 20)}", ip);
+        store.Log(licence.Id, "activated", $"{business} · {LicenceStore.DeviceLabel(r.Platform)} · {Clip(r.AppVersion, 20)}");
         return new(200, Token(licence, installId, business), null, null);
     }
 
@@ -78,7 +78,7 @@ public sealed class LicenceService(LicenceStore store, TokenSigner signer, TimeP
     public JsonObject? Read(string? token) =>
         token is { Length: > 0 } && signer.Verify(token) is { } json ? JsonNode.Parse(json) as JsonObject : null;
 
-    public ApiResult Refresh(RefreshRequest r, string ip)
+    public ApiResult Refresh(RefreshRequest r)
     {
         var payload = Read(r.Token);
         if (payload is null) return new(400, null, "bad_token", "The saved licence isn't valid. Enter the licence key again.");
@@ -94,13 +94,13 @@ public sealed class LicenceService(LicenceStore store, TokenSigner signer, TimeP
         return new(200, Token(licence, iid, business), null, null);
     }
 
-    public ApiResult Deactivate(RefreshRequest r, string ip)
+    public ApiResult Deactivate(RefreshRequest r)
     {
         var payload = Read(r.Token);
         if (payload is null || (string?)payload["lid"] is not { } lid || (string?)payload["iid"] is not { } iid)
             return new(400, null, "bad_token", "The saved licence isn't valid.");
         store.Release(lid, iid);
-        store.Log(lid, "deactivated", (string?)payload["bus"] ?? "", ip);
+        store.Log(lid, "deactivated", (string?)payload["bus"] ?? "");
         return new(200, null, null, "Deactivated. The licence key can now be used elsewhere.");
     }
 }

@@ -242,7 +242,7 @@ public sealed class Payments
             new("cancel_url", WebsiteUrl + "/portal?cancelled=1")
         ], cancel);
         if (session.Error is { } se) return (null, "Couldn't start the payment: " + se);
-        _licences.Log(licence.Id, "checkout", $"£{price:0.##} {(yearly ? "a year" : "a month")} · account {account.Id}", "");
+        _licences.Log(licence.Id, "checkout", $"£{price:0.##} {(yearly ? "a year" : "a month")} · account {account.Id}");
         return (Str(session.Json!.RootElement, "url"), null);
     }
 
@@ -283,12 +283,12 @@ public sealed class Payments
     }
 
     /// <summary>A payment event from Stripe. Returns the HTTP status for Stripe (it retries on errors).</summary>
-    public async Task<int> HandleWebhookAsync(string body, string? signature, string ip, CancellationToken cancel)
+    public async Task<int> HandleWebhookAsync(string body, string? signature, CancellationToken cancel)
     {
         if (Load() is not { WebhookSecret: { } secret } c) return 503;
         if (!SignatureValid(body, signature, secret, DateTimeOffset.UtcNow))
         {
-            _licences.Log(null, "stripe-bad-signature", "", ip);
+            _licences.Log(null, "stripe-bad-signature", "");
             return 400;
         }
         using var doc = JsonDocument.Parse(body);
@@ -304,7 +304,7 @@ public sealed class Payments
                 if (subscription is not null) SetLink("subscription", licenceId, subscription);
                 if (Str(obj, "customer") is { } cus && _licences.Get(licenceId)?.AccountId is { } acc) SetLink("customer", acc, cus);
                 if (Str(obj, "payment_status") is "paid" or "no_payment_required")
-                    return await PaidAsync(c, licenceId, subscription, "card payment", ip, cancel);
+                    return await PaidAsync(c, licenceId, subscription, "card payment", cancel);
                 return 200;
             }
             case "invoice.paid":
@@ -317,7 +317,7 @@ public sealed class Payments
                     ?? Str(obj, "parent", "subscription_details", "metadata", "licence_id");
                 if (licenceId is null || _licences.Get(licenceId) is null) return 200;
                 SetLink("subscription", licenceId, subscription);
-                return await PaidAsync(c, licenceId, subscription, "renewal paid", ip, cancel);
+                return await PaidAsync(c, licenceId, subscription, "renewal paid", cancel);
             }
             case "customer.subscription.updated":
             case "customer.subscription.deleted":
@@ -329,7 +329,7 @@ public sealed class Payments
                 var cancelling = type == "customer.subscription.deleted" || obj.TryGetProperty("cancel_at_period_end", out var cape) && cape.ValueKind == JsonValueKind.True;
                 if (cancelling)
                     _licences.Log(licenceId, "subscription cancelled",
-                        $"{status} · licence runs to {licence.Expires?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "-"}", ip);
+                        $"{status} · licence runs to {licence.Expires?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) ?? "-"}");
                 return 200;
             }
             default:
@@ -338,7 +338,7 @@ public sealed class Payments
     }
 
     /// <summary>Marks a licence paid up to the end of the subscription's current period (plus a day's leeway).</summary>
-    private async Task<int> PaidAsync(Config c, string licenceId, string? subscription, string what, string ip, CancellationToken cancel)
+    private async Task<int> PaidAsync(Config c, string licenceId, string? subscription, string what, CancellationToken cancel)
     {
         DateOnly? until = null;
         if (subscription is not null)
@@ -356,7 +356,7 @@ public sealed class Payments
         until ??= DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(licence.Plan == "yearly" ? 12 : 1).AddDays(1);
         if (licence.Expires is { } current && current > until) until = current;   // never shorten
         _licences.Update(licenceId, null, null, null, null, until, false, null, licence.Status == "revoked" ? null : "active", null);
-        _licences.Log(licenceId, "paid", $"{what} · paid until {until.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}", ip);
+        _licences.Log(licenceId, "paid", $"{what} · paid until {until.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}");
         return 200;
     }
 

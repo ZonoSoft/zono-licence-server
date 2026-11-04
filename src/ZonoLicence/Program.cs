@@ -75,7 +75,6 @@ bool IsAdmin(HttpContext c)
     if (!header.StartsWith("Bearer ", StringComparison.Ordinal)) return false;
     return CryptographicOperations.FixedTimeEquals(SHA256.HashData(Encoding.UTF8.GetBytes(header[7..].Trim())), adminHash);
 }
-string Ip(HttpContext c) => c.Connection.RemoteIpAddress?.ToString() ?? "";
 IResult Send(ApiResult r) => r.Status == 200
     ? Results.Json(new { ok = true, token = r.Token, message = r.Message })
     : Results.Json(new { ok = false, error = r.Error, message = r.Message }, statusCode: r.Status);
@@ -87,13 +86,13 @@ app.MapGet("/", (HttpContext c) => c.Request.Host.Host.EndsWith("zonosoft.co.uk"
     : Results.Text("Zono licence server. Customer portal: https://zonosoft.co.uk/portal", "text/plain"));
 app.MapGet("/api/v1/health", () => Results.Json(new { ok = true, time = DateTime.UtcNow }));
 app.MapGet("/api/v1/public-key", (TokenSigner s) => Results.Text(s.PublicKeyPem, "text/plain"));
-app.MapPost("/api/v1/activate", (ActivateRequest r, LicenceService svc, HttpContext c) => Send(svc.Activate(r, Ip(c)))).RequireRateLimiting("activate");
-app.MapPost("/api/v1/refresh", (RefreshRequest r, LicenceService svc, HttpContext c) => Send(svc.Refresh(r, Ip(c)))).RequireRateLimiting("refresh");
+app.MapPost("/api/v1/activate", (ActivateRequest r, LicenceService svc, HttpContext c) => Send(svc.Activate(r))).RequireRateLimiting("activate");
+app.MapPost("/api/v1/refresh", (RefreshRequest r, LicenceService svc, HttpContext c) => Send(svc.Refresh(r))).RequireRateLimiting("refresh");
 app.MapPost("/api/v1/hello", (HelloRequest r, CustomerService svc) => { var (status, body) = svc.Hello(r); return Results.Json(body, statusCode: status); })
     .RequireRateLimiting("hello");
-app.MapPost("/api/v1/register", (RegisterRequest r, CustomerService svc, HttpContext c) => { var (status, body) = svc.Register(r, Ip(c)); return Results.Json(body, statusCode: status); })
+app.MapPost("/api/v1/register", (RegisterRequest r, CustomerService svc, HttpContext c) => { var (status, body) = svc.Register(r); return Results.Json(body, statusCode: status); })
     .RequireRateLimiting("register");
-app.MapPost("/api/v1/deactivate", (RefreshRequest r, LicenceService svc, HttpContext c) => Send(svc.Deactivate(r, Ip(c)))).RequireRateLimiting("refresh");
+app.MapPost("/api/v1/deactivate", (RefreshRequest r, LicenceService svc, HttpContext c) => Send(svc.Deactivate(r))).RequireRateLimiting("refresh");
 
 // ---------- Downloads (the website's installers) ----------
 
@@ -109,7 +108,7 @@ app.MapGet("/downloads/{name}", (string name, Downloads d, CustomerStore store, 
         return Results.Redirect("/portal?next=" + Uri.EscapeDataString("/workforce/download"));
     c.Response.Headers.CacheControl = "private, no-store";
     if (c.Request.Headers.Range.Count == 0 || c.Request.Headers.Range.ToString().StartsWith("bytes=0-", StringComparison.Ordinal))
-        log.Log(null, "download", $"{name} · account {accountId}", Ip(c));
+        log.Log(null, "download", $"{name} · account {accountId}");
     return Results.File(d.PathOf(name), Downloads.ContentType(name), name, enableRangeProcessing: true);
 }).RequireRateLimiting("refresh");
 
@@ -151,7 +150,7 @@ app.MapGet("/api/v1/update/file", (string t, Downloads d, TokenSigner signer, Li
     var name = S("name");
     if (!Downloads.ValidName(name) || !File.Exists(d.PathOf(name))) return Results.NotFound();
     if (c.Request.Headers.Range.Count == 0 || c.Request.Headers.Range.ToString().StartsWith("bytes=0-", StringComparison.Ordinal))
-        log.Log(null, "update", $"{name} · machine {S("mid")[..Math.Min(12, S("mid").Length)]}", Ip(c));
+        log.Log(null, "update", $"{name} · machine {S("mid")[..Math.Min(12, S("mid").Length)]}");
     c.Response.Headers.CacheControl = "private, no-store";
     return Results.File(d.PathOf(name), Downloads.ContentType(name), name, enableRangeProcessing: true);
 }).RequireRateLimiting("refresh");
@@ -187,7 +186,7 @@ app.MapGet("/portal", (HttpContext c) =>
 var portal = app.MapGroup("/api/portal");
 portal.MapPost("/login", (LoginRequest r, CustomerService svc, CustomerStore store, HttpContext c) =>
 {
-    var (accountId, problem) = svc.Login(r, Ip(c));
+    var (accountId, problem) = svc.Login(r);
     if (accountId is null) return Results.Json(new { ok = false, message = problem }, statusCode: 401);
     c.Response.Cookies.Append(CookieName(c), store.StartSession(accountId), new CookieOptions
     {
@@ -198,7 +197,7 @@ portal.MapPost("/login", (LoginRequest r, CustomerService svc, CustomerStore sto
 
 portal.MapPost("/register", (WebRegisterRequest r, CustomerService svc, CustomerStore store, HttpContext c) =>
 {
-    var (status, body, accountId) = svc.WebRegister(r, Ip(c));
+    var (status, body, accountId) = svc.WebRegister(r);
     if (accountId is not null)
         c.Response.Cookies.Append(CookieName(c), store.StartSession(accountId), new CookieOptions
         {
@@ -249,7 +248,7 @@ mine.MapPost("/checkout", async (BuyRequest r, CustomerService svc, CustomerStor
         return Results.Json(new { ok = false, message = "Please confirm you're buying for your business and agree to the terms." }, statusCode: 400);
     var (licence, problem) = svc.LicenceToPay(id, r);
     if (licence is null) return Results.Json(new { ok = false, message = problem }, statusCode: 400);
-    log.Log(licence.Id, "terms accepted", $"business purchase · terms of {Terms.Version} · account {id}", Ip(c));
+    log.Log(licence.Id, "terms accepted", $"business purchase · terms of {Terms.Version} · account {id}");
     var (url, payProblem) = await pay.CheckoutAsync(licence, store.GetAccount(id)!, c.RequestAborted);
     return url is null ? Results.Json(new { ok = false, message = payProblem }, statusCode: 400) : Results.Json(new { ok = true, url });
 });
@@ -265,7 +264,7 @@ app.MapPost("/api/stripe/webhook", async (HttpContext c, Payments pay) =>
     using var reader = new StreamReader(c.Request.Body);
     var body = await reader.ReadToEndAsync(c.RequestAborted);
     if (body.Length > 512 * 1024) return Results.StatusCode(413);
-    return Results.StatusCode(await pay.HandleWebhookAsync(body, c.Request.Headers["Stripe-Signature"].ToString(), Ip(c), c.RequestAborted));
+    return Results.StatusCode(await pay.HandleWebhookAsync(body, c.Request.Headers["Stripe-Signature"].ToString(), c.RequestAborted));
 });
 
 // ---------- Admin (ZonoSoft only) ----------
@@ -276,7 +275,7 @@ var admin = app.MapGroup("/api/admin").RequireRateLimiting("admin");
 admin.AddEndpointFilter(async (ctx, next) =>
 {
     if (IsAdmin(ctx.HttpContext)) return await next(ctx);
-    ctx.HttpContext.RequestServices.GetRequiredService<LicenceStore>().Log(null, "admin-denied", ctx.HttpContext.Request.Path, Ip(ctx.HttpContext));
+    ctx.HttpContext.RequestServices.GetRequiredService<LicenceStore>().Log(null, "admin-denied", ctx.HttpContext.Request.Path);
     await Task.Delay(500);
     return Results.Json(new { ok = false, message = "Admin key needed." }, statusCode: 401);
 });
@@ -296,7 +295,7 @@ admin.MapGet("/machines", (CustomerStore s) => Results.Json(s.AllMachines().Sele
     m.Id, m.Product, m.Platform, m.AppVersion, m.BusinessName, m.FirstSeenUtc, m.LastSeenUtc, m.Launches,
     TrialStarted = m.TrialStarted.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), Registered = m.AccountId is not null
 })));
-admin.MapGet("/events", (LicenceStore s) => Results.Json(s.Events().Select(e => new { e.At, e.LicenceId, e.What, e.Detail, e.Ip })));
+admin.MapGet("/events", (LicenceStore s) => Results.Json(s.Events().Select(e => new { e.At, e.LicenceId, e.What, e.Detail })));
 
 admin.MapPost("/licences", (NewLicence n, LicenceStore s, HttpContext c) =>
 {
@@ -304,7 +303,7 @@ admin.MapPost("/licences", (NewLicence n, LicenceStore s, HttpContext c) =>
     DateOnly? expires = DateOnly.TryParse(n.Expires, CultureInfo.InvariantCulture, out var d) ? d : null;
     var (licence, key) = s.Create(n.BusinessName, n.Email ?? "", n.Plan ?? "monthly", Math.Clamp(n.TeamSeats ?? 5, 1, 10000), expires,
         Math.Clamp(n.MaxActivations ?? 1, 1, 50), n.Notes ?? "", secrets: c.RequestServices.GetRequiredService<Secrets>());
-    s.Log(licence.Id, "created", $"{licence.BusinessName} · {licence.Plan} · {licence.TeamSeats} team members", Ip(c));
+    s.Log(licence.Id, "created", $"{licence.BusinessName} · {licence.Plan} · {licence.TeamSeats} team members");
     return Results.Json(new { ok = true, key, licence = Describe(s, licence) });
 });
 
@@ -315,7 +314,7 @@ admin.MapPost("/licences/{id}", (string id, LicenceChange ch, LicenceStore s, Ht
     var status = ch.Status is "active" or "revoked" or "pending" ? ch.Status : null;
     s.Update(id, ch.BusinessName, ch.Email, ch.Plan, ch.TeamSeats is { } t ? Math.Clamp(t, 1, 10000) : null, expires, ch.Expires == "",
         ch.MaxActivations is { } m ? Math.Clamp(m, 1, 50) : null, status, ch.Notes);
-    s.Log(id, "changed", System.Text.Json.JsonSerializer.Serialize(ch), Ip(c));
+    s.Log(id, "changed", System.Text.Json.JsonSerializer.Serialize(ch));
     return Results.Json(new { ok = true, licence = Describe(s, s.Get(id)!) });
 });
 
@@ -323,14 +322,14 @@ admin.MapPost("/licences/{id}/new-key", (string id, LicenceStore s, HttpContext 
 {
     if (s.Get(id) is null) return Results.NotFound();
     var key = s.NewKeyFor(id, c.RequestServices.GetRequiredService<Secrets>());
-    s.Log(id, "new key", "", Ip(c));
+    s.Log(id, "new key", "");
     return Results.Json(new { ok = true, key });
 });
 
 admin.MapPost("/activations/{id:long}/release", (long id, LicenceStore s, HttpContext c) =>
 {
     s.ReleaseById(id);
-    s.Log(null, "released", "activation " + id, Ip(c));
+    s.Log(null, "released", "activation " + id);
     return Results.Json(new { ok = true });
 });
 
@@ -338,13 +337,13 @@ admin.MapGet("/payments", (Payments pay) => Results.Json(pay.Status()));
 admin.MapPost("/payments", async (StripeKeyRequest r, Payments pay, LicenceStore s, HttpContext c) =>
 {
     var problem = await pay.ConnectAsync(r.SecretKey, c.RequestAborted);
-    s.Log(null, problem is null ? "stripe connected" : "stripe connect failed", problem ?? "", Ip(c));
+    s.Log(null, problem is null ? "stripe connected" : "stripe connect failed", problem ?? "");
     return problem is null ? Results.Json(new { ok = true, status = pay.Status() }) : Results.Json(new { ok = false, message = problem, status = pay.Status() }, statusCode: 400);
 });
 admin.MapPost("/payments/disconnect", async (Payments pay, LicenceStore s, HttpContext c) =>
 {
     await pay.DisconnectAsync(c.RequestAborted);
-    s.Log(null, "stripe disconnected", "", Ip(c));
+    s.Log(null, "stripe disconnected", "");
     return Results.Json(new { ok = true });
 });
 
@@ -357,7 +356,7 @@ admin.MapPost("/downloads", async (HttpContext c, Downloads d, LicenceStore s) =
     try
     {
         var saved = await d.SaveAsync(name, c.Request.Body, c.RequestAborted);
-        s.Log(null, "download uploaded", $"{name} ({saved.Bytes / 1048576.0:0.0} MB)", Ip(c));
+        s.Log(null, "download uploaded", $"{name} ({saved.Bytes / 1048576.0:0.0} MB)");
         return Results.Json(new { ok = true, file = saved });
     }
     catch (InvalidDataException e)
@@ -368,7 +367,7 @@ admin.MapPost("/downloads", async (HttpContext c, Downloads d, LicenceStore s) =
 admin.MapPost("/downloads/{name}/delete", (string name, Downloads d, LicenceStore s, HttpContext c) =>
 {
     if (!d.Delete(name)) return Results.NotFound();
-    s.Log(null, "download deleted", name, Ip(c));
+    s.Log(null, "download deleted", name);
     return Results.Json(new { ok = true });
 });
 
