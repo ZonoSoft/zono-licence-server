@@ -166,8 +166,7 @@ public sealed class CustomerService(CustomerStore customers, LicenceStore licenc
         if (account.LockedUntilUtc is { } until && until > DateTime.UtcNow)
             return (null, "Too many wrong passwords. Try again in 15 minutes.");
         var ok = Secrets.CheckPassword(password, account.PasswordHash);
-        customers.LoginResult(account.Id, ok);
-        licences.Log(null, ok ? "portal-login" : "portal-login-failed", account.Id);
+        customers.LoginResult(account.Id, ok);   // counts wrong passwords for the 15-minute lock; sign-ins aren't logged
         return ok ? (account.Id, null) : (null, "That username or password isn't right.");
     }
 

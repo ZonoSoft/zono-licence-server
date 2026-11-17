@@ -171,6 +171,11 @@ for f in /var/backups/zono-licence/licences-*.db; do
   if [ "$(sqlite3 "$f" "SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = 'machines';" 2>/dev/null || echo 0)" != "0" ]; then
     sqlite3 "$f" "DROP TABLE machines; VACUUM;" && echo "== Removed trial device records from $(basename "$f")"
   fi
+  # Only sales and admin actions are kept: remove activity records (activations, checks, sign-ins, downloads)
+  ACT="'activated','activate-failed','deactivated','released','portal-login','portal-login-failed','download','update','hello'"
+  if [ "$(sqlite3 "$f" "SELECT count(*) FROM events WHERE what IN ($ACT);" 2>/dev/null || echo 0)" != "0" ]; then
+    sqlite3 "$f" "DELETE FROM events WHERE what IN ($ACT); VACUUM;" && echo "== Removed activity records from $(basename "$f")"
+  fi
 done
 
 # Updates itself: every 15 minutes, if the code on GitHub has changed (or the web addresses' DNS has), install again

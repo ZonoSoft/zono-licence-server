@@ -68,6 +68,10 @@ public sealed class LicenceStore
         Exec(c, $"UPDATE activations SET device_name = {DeviceLabelSql} WHERE device_name <> {DeviceLabelSql};");
         ScrubActivationEvents(c);
 
+        // v5: only sales and admin actions are kept in the events log, not what people do (activations, licence checks,
+        // releases, sign-ins, downloads, updates). Remove any recorded before.
+        if (Exec(c, $"DELETE FROM events WHERE what IN ({ActivityEventsSql});") > 0) Exec(c, "VACUUM;");
+
         // v4: IP addresses are never kept. Clear any recorded before, and squeeze them out of the file.
         if (Exec(c, "UPDATE events SET ip = '' WHERE ip <> '';") > 0) Exec(c, "VACUUM;");
     }
@@ -140,6 +144,11 @@ public sealed class LicenceStore
         c.Open();
         return c;
     }
+
+    /// <summary>Kinds of event that recorded what people did rather than what they bought (no longer kept).</summary>
+    public static readonly string[] ActivityEvents =
+        ["activated", "activate-failed", "deactivated", "released", "portal-login", "portal-login-failed", "download", "update", "hello"];
+    private static string ActivityEventsSql => string.Join(",", ActivityEvents.Select(e => "'" + e + "'"));
 
     private static int Exec(SqliteConnection c, string sql)
     {

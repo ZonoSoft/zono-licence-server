@@ -101,14 +101,13 @@ app.MapGet("/api/v1/downloads", (Downloads d) => Results.Json(d.Latest().Select(
     f.Name, f.Product, f.Platform, f.Version, f.Bytes, f.Sha256, f.UploadedUtc, Url = "/downloads/" + f.Name
 })));
 // Only people signed in to a ZonoSoft account can download
-app.MapGet("/downloads/{name}", (string name, Downloads d, CustomerStore store, LicenceStore log, HttpContext c) =>
+// Downloads need a signed-in account; they aren't logged
+app.MapGet("/downloads/{name}", (string name, Downloads d, CustomerStore store, HttpContext c) =>
 {
     if (!Downloads.ValidName(name) || !File.Exists(d.PathOf(name))) return Results.NotFound();
-    if (store.SessionAccount(SessionToken(c)) is not { } accountId)
+    if (store.SessionAccount(SessionToken(c)) is null)
         return Results.Redirect("/portal?next=" + Uri.EscapeDataString("/workforce/download"));
     c.Response.Headers.CacheControl = "private, no-store";
-    if (c.Request.Headers.Range.Count == 0 || c.Request.Headers.Range.ToString().StartsWith("bytes=0-", StringComparison.Ordinal))
-        log.Log(null, "download", $"{name} · account {accountId}");
     return Results.File(d.PathOf(name), Downloads.ContentType(name), name, enableRangeProcessing: true);
 }).RequireRateLimiting("refresh");
 
@@ -330,7 +329,6 @@ admin.MapPost("/licences/{id}/new-key", (string id, LicenceStore s, HttpContext 
 admin.MapPost("/activations/{id:long}/release", (long id, LicenceStore s, HttpContext c) =>
 {
     s.ReleaseById(id);
-    s.Log(null, "released", "activation " + id);
     return Results.Json(new { ok = true });
 });
 

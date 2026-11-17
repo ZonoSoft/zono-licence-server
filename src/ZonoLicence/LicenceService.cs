@@ -62,29 +62,25 @@ public sealed class LicenceService(LicenceStore store, TokenSigner signer, TimeP
         if (string.IsNullOrWhiteSpace(r.Key) || installId.Length < 8)
             return new(400, null, "bad_request", "Enter the licence key.");
         var licence = store.FindByKey(r.Key);
+        // Activations and checks aren't logged: only sales are (see LicenceStore.ActivityEvents)
         if (licence is null)
         {
-            store.Log(null, "activate-failed", "unknown key");
             return new(404, null, "unknown_key", "That licence key wasn't found. Check it and try again.");
         }
         if (licence.Status == "revoked")
         {
-            store.Log(licence.Id, "activate-failed", "revoked");
             return new(403, null, "revoked", "This licence has been cancelled. Contact ZonoSoft.");
         }
         if (licence.Status == "pending")
         {
-            store.Log(licence.Id, "activate-failed", "waiting for payment");
             return new(402, null, "awaiting_payment", "This licence is waiting for payment. It starts by itself once payment is received.");
         }
         var business = Clip(r.BusinessName, 80);
         if (!store.Activate(licence, installId, business, Clip(r.DeviceName, 80), Clip(r.Platform, 20), Clip(r.AppVersion, 20)))
         {
-            store.Log(licence.Id, "activate-failed", "no free activations");
             return new(409, null, "in_use",
                 "This licence key is already in use for another business or PC. Deactivate it there first (Settings → Licence), or contact ZonoSoft to move it.");
         }
-        store.Log(licence.Id, "activated", $"{business} · {LicenceStore.DeviceLabel(r.Platform)} · {Clip(r.AppVersion, 20)}");
         return new(200, Token(licence, installId, business), null, null);
     }
 
@@ -114,7 +110,6 @@ public sealed class LicenceService(LicenceStore store, TokenSigner signer, TimeP
         if (payload is null || (string?)payload["lid"] is not { } lid || (string?)payload["iid"] is not { } iid)
             return new(400, null, "bad_token", "The saved licence isn't valid.");
         store.Release(lid, iid);
-        store.Log(lid, "deactivated", (string?)payload["bus"] ?? "");
         return new(200, null, null, "Deactivated. The licence key can now be used elsewhere.");
     }
 }
