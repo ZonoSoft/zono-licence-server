@@ -4,8 +4,8 @@ using System.Text.Json.Nodes;
 
 namespace ZonoLicence;
 
-public sealed record ActivateRequest(string? Key, string? InstallId, string? BusinessName, string? DeviceName, string? Platform, string? AppVersion);
-public sealed record RefreshRequest(string? Token, string? InstallId, string? AppVersion);
+public sealed record ActivateRequest(string? Key, string? InstallId, string? BusinessName, string? DeviceName, string? Platform, string? AppVersion, string? Nonce = null);
+public sealed record RefreshRequest(string? Token, string? InstallId, string? AppVersion, string? Nonce = null);
 public sealed record ApiResult(int Status, string? Token, string? Error, string? Message);
 
 /// <summary>
@@ -31,7 +31,14 @@ public sealed class LicenceService(LicenceStore store, TokenSigner signer, TimeP
     /// <summary>Today's date in the UK (GMT, or BST in summer): when paid-until and demo dates end.</summary>
     public static DateOnly UkToday(DateTime utcNow) => DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(utcNow, Uk));
 
-    public string Token(Licence l, string installId, string businessName)
+    /// <summary>
+    /// A one-off code the app sends with each check (16–64 letters and digits). It goes into the signed reply, so the app
+    /// can tell the reply was made just now for it, and an old reply played back to it is refused.
+    /// </summary>
+    public static string? CleanNonce(string? nonce) =>
+        nonce is { Length: >= 16 and <= 64 } n && n.All(char.IsAsciiLetterOrDigit) ? n : null;
+
+    public string Token(Licence l, string installId, string businessName, string? nonce = null)
     {
         var now = clock.GetUtcNow().UtcDateTime;
         var status = l.Status != "active" ? l.Status
@@ -51,6 +58,20 @@ public sealed class LicenceService(LicenceStore store, TokenSigner signer, TimeP
             ["iat"] = now.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture),
             ["until"] = now.Add(life).ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture)
         };
+        if (CleanNonce(nonce) is { } n) payload["non"] = n;
+        return signer.Sign(payload.ToJsonString());
+    }
+
+    /// <summary>The server's time, signed with the app's one-off code (the Team app uses it during a demo).</summary>
+    public string SignedTime(string? nonce)
+    {
+        var payload = new JsonObject
+        {
+            ["v"] = 1,
+            ["typ"] = "time",
+            ["iat"] = clock.GetUtcNow().UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'", CultureInfo.InvariantCulture)
+        };
+        if (CleanNonce(nonce) is { } n) payload["non"] = n;
         return signer.Sign(payload.ToJsonString());
     }
 
@@ -81,7 +102,7 @@ public sealed class LicenceService(LicenceStore store, TokenSigner signer, TimeP
             return new(409, null, "in_use",
                 "This licence key is already in use for another business or PC. Deactivate it there first (Settings → Licence), or contact ZonoSoft to move it.");
         }
-        return new(200, Token(licence, installId, business), null, null);
+        return new(200, Token(licence, installId, business, r.Nonce), null, null);
     }
 
     /// <summary>Reads a token this server signed (null when the signature doesn't match).</summary>
@@ -101,7 +122,7 @@ public sealed class LicenceService(LicenceStore store, TokenSigner signer, TimeP
             return new(409, null, "released", "This licence was deactivated for this business. Enter the licence key again.");
         var business = (string?)payload["bus"] ?? "";
         store.Activate(licence, iid, business, "", "", Clip(r.AppVersion, 20));   // updates "last seen"
-        return new(200, Token(licence, iid, business), null, null);
+        return new(200, Token(licence, iid, business, r.Nonce), null, null);
     }
 
     public ApiResult Deactivate(RefreshRequest r)

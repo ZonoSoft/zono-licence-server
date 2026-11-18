@@ -3,7 +3,7 @@ using System.Net.Mail;
 
 namespace ZonoLicence;
 
-public sealed record HelloRequest(string? MachineId, string? Product, string? Platform, string? AppVersion, string? InstallId, string? BusinessName, string? DeviceName);
+public sealed record HelloRequest(string? MachineId, string? Product, string? Platform, string? AppVersion, string? InstallId, string? BusinessName, string? DeviceName, string? Nonce = null);
 
 public sealed record RegisterRequest(
     string? MachineId, string? InstallId, string? Product, string? Platform, string? AppVersion, string? DeviceName,
@@ -55,7 +55,7 @@ public sealed class CustomerService(CustomerStore customers, LicenceStore licenc
         string? token = null;
         if (licence.Status != "pending" &&
             licences.Activate(licence, installId, business, LicenceStore.DeviceLabel(r.Platform), Clip(r.Platform, 20), Clip(r.AppVersion, 20)))
-            token = licensing.Token(licence, installId, business);
+            token = licensing.Token(licence, installId, business, r.Nonce);
         var account = licence.AccountId is { } id ? customers.GetAccount(id) : null;
         return (200, new { ok = true, registered = account is not null, username = account?.Username, licenceStatus = licence.Status, token });
     }

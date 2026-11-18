@@ -85,6 +85,9 @@ app.MapGet("/", (HttpContext c) => c.Request.Host.Host.EndsWith("zonosoft.co.uk"
     ? Results.Redirect("/portal")
     : Results.Text("Zono licence server. Customer portal: https://zonosoft.co.uk/portal", "text/plain"));
 app.MapGet("/api/v1/health", () => Results.Json(new { ok = true, time = DateTime.UtcNow }));
+// The server's time, signed together with the app's one-off code n (nothing is recorded)
+app.MapGet("/api/v1/time", (string? n, LicenceService svc) => Results.Json(new { ok = true, token = svc.SignedTime(n) }))
+    .RequireRateLimiting("refresh");
 app.MapGet("/api/v1/public-key", (TokenSigner s) => Results.Text(s.PublicKeyPem, "text/plain"));
 app.MapPost("/api/v1/activate", (ActivateRequest r, LicenceService svc, HttpContext c) => Send(svc.Activate(r))).RequireRateLimiting("activate");
 app.MapPost("/api/v1/refresh", (RefreshRequest r, LicenceService svc, HttpContext c) => Send(svc.Refresh(r))).RequireRateLimiting("refresh");

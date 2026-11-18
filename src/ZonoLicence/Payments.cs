@@ -304,7 +304,18 @@ public sealed class Payments
                 if (subscription is not null) SetLink("subscription", licenceId, subscription);
                 if (Str(obj, "customer") is { } cus && _licences.Get(licenceId)?.AccountId is { } acc) SetLink("customer", acc, cus);
                 if (Str(obj, "payment_status") is "paid" or "no_payment_required")
+                {
+                    // The price is set by the server when the checkout is made; refuse anything that paid less
+                    var lic = _licences.Get(licenceId)!;
+                    var expected = (long)Math.Round(CustomerService.Price(lic.Plan, lic.TeamSeats) * 100m);
+                    if (Long(obj, "amount_total") is not { } paid || paid < expected || Str(obj, "currency") is { } cur && cur != "gbp")
+                    {
+                        _licences.Log(licenceId, "payment refused",
+                            $"paid {(Long(obj, "amount_total") ?? 0) / 100m:0.00} {Str(obj, "currency")}, expected {expected / 100m:0.00} gbp");
+                        return 200;
+                    }
                     return await PaidAsync(c, licenceId, subscription, "card payment", cancel);
+                }
                 return 200;
             }
             case "invoice.paid":
@@ -317,6 +328,9 @@ public sealed class Payments
                     ?? Str(obj, "parent", "subscription_details", "metadata", "licence_id");
                 if (licenceId is null || _licences.Get(licenceId) is null) return 200;
                 SetLink("subscription", licenceId, subscription);
+                if (Long(obj, "amount_paid") is { } amount && _licences.Get(licenceId) is { } renewing
+                    && amount < (long)Math.Round(CustomerService.Price(renewing.Plan, renewing.TeamSeats) * 100m))
+                    _licences.Log(licenceId, "check payment", $"renewal paid {amount / 100m:0.00}, less than the licence's price (team members changed?)");
                 return await PaidAsync(c, licenceId, subscription, "renewal paid", cancel);
             }
             case "customer.subscription.updated":
