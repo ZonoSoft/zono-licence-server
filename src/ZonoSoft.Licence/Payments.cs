@@ -5,7 +5,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.Data.Sqlite;
 
-namespace ZonoLicence;
+namespace ZonoSoft.Licence;
 
 /// <summary>What the admin page shows about card payments.</summary>
 public sealed record PaymentStatus(bool Connected, string? Account, bool LiveMode, string? WebhookUrl, string? Problem);
@@ -26,9 +26,9 @@ public sealed class Payments
     private readonly LicenceStore _licences;
     private readonly CustomerStore _customers;
     private readonly HttpClient _http;
-    private readonly string _apiBase = (Environment.GetEnvironmentVariable("ZONO_STRIPE_API") ?? "https://api.stripe.com").TrimEnd('/');
-    public static string PublicUrl => (Environment.GetEnvironmentVariable("ZONO_PUBLIC_URL") ?? "https://licence.zonosoft.co.uk").TrimEnd('/');
-    public static string WebsiteUrl => (Environment.GetEnvironmentVariable("ZONO_WEBSITE_URL") ?? "https://zonosoft.co.uk").TrimEnd('/');
+    private readonly string _apiBase = (Environment.GetEnvironmentVariable("ZONOSOFT_STRIPE_API") ?? "https://api.stripe.com").TrimEnd('/');
+    public static string PublicUrl => (Environment.GetEnvironmentVariable("ZONOSOFT_PUBLIC_URL") ?? "https://licence.zonosoft.co.uk").TrimEnd('/');
+    public static string WebsiteUrl => (Environment.GetEnvironmentVariable("ZONOSOFT_WEBSITE_URL") ?? "https://zonosoft.co.uk").TrimEnd('/');
     public static string WebhookUrl => PublicUrl + "/api/stripe/webhook";
 
     private static readonly string[] WebhookEvents =

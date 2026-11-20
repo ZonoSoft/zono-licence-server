@@ -100,7 +100,7 @@
     <section class="card">
       <h2>Download the apps</h2>
       <p class="muted">Installers for Windows and Android for Shifenza and Shifenza Team.</p>
-      <p><a class="button" href="/workforce/download">Go to downloads</a></p>
+      <p><a class="button" href="/shifenza/download">Go to downloads</a></p>
     </section>
 
     </div>
@@ -209,7 +209,7 @@ async function load() {
       ? `<div class="key"><span>${esc(l.key)}</span><button type="button" data-copy="${esc(l.key)}">Copy</button></div>`
       : l.status === "pending"
         ? `<div class="key"><span style="font:600 16px/1.4 inherit;letter-spacing:0">Your licence key appears here as soon as you've paid.</span></div>`
-        : `<div class="key"><span>ZONO-…-${esc(l.keyHint)}</span></div>`}
+        : `<div class="key"><span>ZSFT-…-${esc(l.keyHint)}</span></div>`}
     <dl>
       <dt>Status</dt><dd><span class="pill ${esc(l.status)}">${esc(statusName(l.status))}</span></dd>
       <dt>Plan</dt><dd>${esc(planName(l.plan))} · ${l.teamSeats} team members${l.price ? ` · ${money(l.price)} a ${l.plan === "yearly" ? "year" : "month"}` : ""}</dd>
@@ -232,7 +232,7 @@ async function load() {
       <p><button class="primary" type="submit">Pay by card or PayPal</button></p>
     </form>` : `<p><strong>No licence yet.</strong></p>
     <ol class="muted" style="padding-left:1.2em">
-      <li><a href="/workforce/download">Download Shifenza</a>. To try it before buying, email ZonoSoft@outlook.com for a free demo key.</li>
+      <li><a href="/shifenza/download">Download Shifenza</a>. To try it before buying, email ZonoSoft@outlook.com for a free demo key.</li>
       <li>In the app, go to Settings, then Licence, then Buy a licence.</li>
       <li>Use this account's username and password there. The licence is added to this account.</li>
     </ol>`;

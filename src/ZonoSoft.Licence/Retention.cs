@@ -1,4 +1,4 @@
-namespace ZonoLicence;
+namespace ZonoSoft.Licence;
 
 /// <summary>
 /// Once a day, deletes what the privacy notice says isn't kept: activity records after 12 months, devices released from a licence over 2 years ago, and expired portal sign-ins.

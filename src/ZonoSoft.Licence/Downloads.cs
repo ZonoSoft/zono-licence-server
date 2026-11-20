@@ -2,7 +2,7 @@ using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 
-namespace ZonoLicence;
+namespace ZonoSoft.Licence;
 
 /// <summary>One installer on the server.</summary>
 public sealed record DownloadFile(string Name, string Product, string Platform, string Version, long Bytes, string Sha256, DateTime UploadedUtc);
@@ -10,15 +10,13 @@ public sealed record DownloadFile(string Name, string Product, string Platform, 
 /// <summary>
 /// The app installers people download from the website. ZonoSoft uploads them on the admin page; they're kept in the
 /// data folder and the website lists the newest of each (Shifenza / Shifenza Team, Windows / Android).
-/// File names follow the build names, e.g. Shifenza-v0.37.0-Windows-Setup.exe or ShifenzaTeam-v0.37.0-Android.apk
-/// (before v0.37: ZonoWorkforceSuite-… and ZonoTeam-…).
+/// File names follow the build names, e.g. Shifenza-v0.38.0-Windows-Setup.exe or ShifenzaTeam-v0.38.0-Android.apk.
 /// </summary>
 public sealed partial class Downloads(string folder)
 {
     public const long MaxBytes = 600L * 1024 * 1024;
 
-    // Since v0.37 the apps are Shifenza and Shifenza Team; older builds kept their Zono names
-    [GeneratedRegex(@"^(ShifenzaTeam|Shifenza|ZonoWorkforceSuite|ZonoWorkforce|ZonoTeam)-v(\d+\.\d+\.\d+)-(Windows|Android|iOS|Mac|Linux)[A-Za-z0-9_-]*\.(zip|apk|exe|msi|ipa|dmg)$", RegexOptions.IgnoreCase)]
+    [GeneratedRegex(@"^(ShifenzaTeam|Shifenza)-v(\d+\.\d+\.\d+)-(Windows|Android|iOS|Mac|Linux)[A-Za-z0-9_-]*\.(zip|apk|exe|msi|ipa|dmg)$", RegexOptions.IgnoreCase)]
     private static partial Regex NamePattern();
 
     public static bool ValidName(string? name) => name is not null && name.Length <= 120 && NamePattern().IsMatch(name);

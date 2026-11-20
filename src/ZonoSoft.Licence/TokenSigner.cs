@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 
-namespace ZonoLicence;
+namespace ZonoSoft.Licence;
 
 /// <summary>
 /// Signs licence tokens with an ECDSA P-256 key that never leaves the server. The apps hold only the public key, so they

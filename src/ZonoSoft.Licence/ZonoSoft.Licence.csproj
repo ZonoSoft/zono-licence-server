@@ -3,8 +3,8 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <AssemblyName>zono-licence</AssemblyName>
-    <RootNamespace>ZonoLicence</RootNamespace>
+    <AssemblyName>zonosoft-licence</AssemblyName>
+    <RootNamespace>ZonoSoft.Licence</RootNamespace>
     <InvariantGlobalization>true</InvariantGlobalization>
   </PropertyGroup>
   <ItemGroup>

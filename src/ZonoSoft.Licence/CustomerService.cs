@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Net.Mail;
 
-namespace ZonoLicence;
+namespace ZonoSoft.Licence;
 
 public sealed record HelloRequest(string? MachineId, string? Product, string? Platform, string? AppVersion, string? InstallId, string? BusinessName, string? DeviceName, string? Nonce = null);
 

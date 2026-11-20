@@ -43,8 +43,8 @@
 <main>
   <section id="login" class="card">
     <h2>Admin key</h2>
-    <p class="muted">On the server: <code>sudo cat /etc/zono-licence/admin.key</code>. It's kept in this browser tab only until you close it.</p>
-    <input id="adminKey" type="password" autocomplete="off" placeholder="zono-admin-…">
+    <p class="muted">On the server: <code>sudo cat /etc/zonosoft-licence/admin.key</code>. It's kept in this browser tab only until you close it.</p>
+    <input id="adminKey" type="password" autocomplete="off" placeholder="Admin key">
     <p><button class="primary" id="go">Open</button> <span id="loginMsg" class="muted"></span></p>
   </section>
 
@@ -92,7 +92,7 @@
 
     <section class="card">
       <h2>Downloads on the website</h2>
-      <p class="muted">Upload the builds with their own file names (e.g. ZonoWorkforceSuite-v0.32.0-Windows.zip, ZonoWorkforce-v0.32.0-Android.apk, ZonoTeam-v0.32.0-Windows.zip, ZonoTeam-v0.32.0-Android.apk). The website offers the newest of each.</p>
+      <p class="muted">Upload the builds with their own file names (e.g. Shifenza-v0.38.0-Windows-Setup.exe, Shifenza-v0.38.0-Android.apk, ShifenzaTeam-v0.38.0-Windows-Setup.exe, ShifenzaTeam-v0.38.0-Android.apk). The website offers the newest of each.</p>
       <p><input id="upFiles" type="file" multiple accept=".zip,.apk,.exe,.msi"> <button class="primary" id="upGo">Upload</button></p>
       <div id="upProgress" class="muted"></div>
       <div class="bulk"><span id="fileCount" class="muted">None selected</span> <button class="danger" id="bulkFiles" disabled>Delete selected</button></div>
@@ -118,7 +118,7 @@
 </main>
 <script>
 const $ = id => document.getElementById(id);
-let key = sessionStorage.getItem("zonoAdmin") || "";
+let key = sessionStorage.getItem("zonosoftAdmin") || "";
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const when = s => s ? new Date(s).toLocaleString("en-GB", {day:"numeric", month:"short", year:"numeric", hour:"2-digit", minute:"2-digit"}) : "";
 
@@ -136,7 +136,7 @@ async function api(path, body) {
 }
 
 function lock(msg) {
-  key = ""; sessionStorage.removeItem("zonoAdmin");
+  key = ""; sessionStorage.removeItem("zonosoftAdmin");
   $("app").classList.add("hidden"); $("logout").classList.add("hidden"); $("login").classList.remove("hidden");
   $("loginMsg").textContent = msg || "";
 }
@@ -145,7 +145,7 @@ async function open() {
   key = $("adminKey").value.trim() || key;
   if (!key) return;
   try { await load(); } catch { return; }
-  sessionStorage.setItem("zonoAdmin", key);
+  sessionStorage.setItem("zonosoftAdmin", key);
   $("adminKey").value = "";
   $("login").classList.add("hidden"); $("app").classList.remove("hidden"); $("logout").classList.remove("hidden");
 }
@@ -369,7 +369,7 @@ $("backup").onclick = async () => {
   const r = await api("/backup");
   const blob = await r.blob();
   const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
-  a.download = `zono-licences-${new Date().toISOString().slice(0,10)}.db`; a.click();
+  a.download = `zonosoft-licences-${new Date().toISOString().slice(0,10)}.db`; a.click();
 };
 
 if (key) open();

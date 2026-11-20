@@ -5,14 +5,14 @@ using System.Text;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
-using ZonoLicence;
+using ZonoSoft.Licence;
 
 // ZonoSoft licence server: activates and refreshes Shifenza licences, with an admin page for ZonoSoft.
-// Settings (environment): ZONO_DATA (folder for the database and signing key), ZONO_ADMIN_KEY_FILE, ZONO_URLS.
+// Settings (environment): ZONOSOFT_DATA (folder for the database and signing key), ZONOSOFT_ADMIN_KEY_FILE, ZONOSOFT_URLS.
 var builder = WebApplication.CreateBuilder(args);
-var dataDir = Environment.GetEnvironmentVariable("ZONO_DATA") ?? Path.Combine(AppContext.BaseDirectory, "data");
-var adminKeyFile = Environment.GetEnvironmentVariable("ZONO_ADMIN_KEY_FILE") ?? Path.Combine(dataDir, "admin.key");
-builder.WebHost.UseUrls(Environment.GetEnvironmentVariable("ZONO_URLS") ?? "http://127.0.0.1:5080");
+var dataDir = Environment.GetEnvironmentVariable("ZONOSOFT_DATA") ?? Path.Combine(AppContext.BaseDirectory, "data");
+var adminKeyFile = Environment.GetEnvironmentVariable("ZONOSOFT_ADMIN_KEY_FILE") ?? Path.Combine(dataDir, "admin.key");
+builder.WebHost.UseUrls(Environment.GetEnvironmentVariable("ZONOSOFT_URLS") ?? "http://127.0.0.1:5080");
 builder.WebHost.ConfigureKestrel(k => k.Limits.MaxRequestBodySize = 64 * 1024);
 
 builder.Services.AddSingleton(TimeProvider.System);
@@ -66,7 +66,7 @@ app.Use(async (c, next) =>
 if (!File.Exists(adminKeyFile))
 {
     Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(adminKeyFile))!);
-    File.WriteAllText(adminKeyFile, "zono-admin-" + TokenSigner.B64(RandomNumberGenerator.GetBytes(24)) + "\n");
+    File.WriteAllText(adminKeyFile, "zonosoft-admin-" + TokenSigner.B64(RandomNumberGenerator.GetBytes(24)) + "\n");
     if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(adminKeyFile, UnixFileMode.UserRead | UnixFileMode.UserWrite);
 }
 var adminHash = SHA256.HashData(Encoding.UTF8.GetBytes(File.ReadAllText(adminKeyFile).Trim()));
@@ -110,7 +110,7 @@ app.MapGet("/downloads/{name}", (string name, Downloads d, CustomerStore store, 
 {
     if (!Downloads.ValidName(name) || !File.Exists(d.PathOf(name))) return Results.NotFound();
     if (store.SessionAccount(SessionToken(c)) is null)
-        return Results.Redirect("/portal?next=" + Uri.EscapeDataString("/workforce/download"));
+        return Results.Redirect("/portal?next=" + Uri.EscapeDataString("/shifenza/download"));
     c.Response.Headers.CacheControl = "private, no-store";
     return Results.File(d.PathOf(name), Downloads.ContentType(name), name, enableRangeProcessing: true);
 }).RequireRateLimiting("refresh");
@@ -120,15 +120,13 @@ app.MapGet("/downloads/{name}", (string name, Downloads d, CustomerStore store, 
 // the licence signing key, so the app knows it came from ZonoSoft; the signed ticket also lets it download that one file
 // for an hour (the website's downloads need an account; the apps use this instead). The app checks the file's SHA-256
 // against the signed one before installing. Nothing is recorded. "MachineId" is a one-off code the app makes for this
-// check (older apps sent a device code); it's only put in the ticket so the app knows the answer was meant for it.
-// Apps before 0.35 didn't send their token, so they're still answered (they need the update to keep working).
+// check; it's only put in the ticket so the app knows the answer was meant for it.
 app.MapPost("/api/v1/update", (UpdateRequest r, Downloads d, LicenceStore licences, LicenceService licensing, TokenSigner signer) =>
 {
     if (r.MachineId is not { Length: >= 16 and <= 128 } mid)
         return Results.Json(new { ok = false, message = "Missing check code." }, statusCode: 400);
     var licensed = licensing.Read(r.Token) is { } t && (string?)t["lid"] is { } lid && licences.Get(lid) is { Status: not "revoked" };
-    var legacy = r.Token is null && Version.TryParse(r.AppVersion, out var v) && v < new Version(0, 35);
-    if (!licensed && !legacy)
+    if (!licensed)
         return Results.Json(new { ok = false, message = "Updates need a licence or demo key." }, statusCode: 403);
     var product = r.Product?.ToLowerInvariant() == "team" ? "team" : "workforce";
     var platform = (r.Platform ?? "").ToLowerInvariant();
@@ -181,7 +179,7 @@ string Page(string name)
     using var reader = new StreamReader(stream);
     return reader.ReadToEnd();
 }
-string CookieName(HttpContext c) => c.Request.IsHttps ? "__Host-zono-portal" : "zono-portal";
+string CookieName(HttpContext c) => c.Request.IsHttps ? "__Host-zonosoft-portal" : "zonosoft-portal";
 string? SessionToken(HttpContext c) => c.Request.Cookies[CookieName(c)];
 
 app.MapGet("/portal", (HttpContext c) =>
@@ -364,7 +362,7 @@ admin.MapPost("/downloads", async (HttpContext c, Downloads d, LicenceStore s) =
 {
     var name = c.Request.Query["name"].ToString();
     if (!Downloads.ValidName(name))
-        return Results.Json(new { ok = false, message = "Use the build's own file name, e.g. ZonoWorkforceSuite-v0.32.0-Windows.zip or ZonoTeam-v0.32.0-Android.apk." }, statusCode: 400);
+        return Results.Json(new { ok = false, message = "Use the build's own file name, e.g. Shifenza-v0.38.0-Windows-Setup.exe or ShifenzaTeam-v0.38.0-Android.apk." }, statusCode: 400);
     try
     {
         var saved = await d.SaveAsync(name, c.Request.Body, c.RequestAborted);
@@ -414,7 +412,7 @@ admin.MapPost("/vault/{name}/delete", (string name, Vault v, LicenceStore s) =>
 
 admin.MapGet("/backup", (LicenceStore s) =>
 {
-    var path = Path.Combine(Path.GetTempPath(), $"zono-licences-{DateTime.UtcNow:yyyyMMdd-HHmmss}.db");
+    var path = Path.Combine(Path.GetTempPath(), $"zonosoft-licences-{DateTime.UtcNow:yyyyMMdd-HHmmss}.db");
     s.BackupTo(path);
     var bytes = File.ReadAllBytes(path);
     File.Delete(path);

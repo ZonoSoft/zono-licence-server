@@ -3,7 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Data.Sqlite;
 
-namespace ZonoLicence;
+namespace ZonoSoft.Licence;
 
 public sealed record Licence(
     string Id, string KeyHint, string BusinessName, string Email, string Plan, int TeamSeats, DateOnly? Expires,
@@ -171,21 +171,22 @@ public sealed class LicenceStore
 
     // ---------- Keys ----------
 
-    /// <summary>A new licence key like ZONO-7KQ2M-XW4PD-3H9TF-NB6RC (100 random bits).</summary>
+    /// <summary>A new licence key like ZSFT-7KQ2M-XW4PD-3H9TF-NB6RC (100 random bits).</summary>
     public static string NewKey()
     {
         var bytes = RandomNumberGenerator.GetBytes(20);
         var chars = bytes.Select(b => Alphabet[b % Alphabet.Length]).ToArray();
-        return "ZONO-" + string.Join('-', Enumerable.Range(0, 4).Select(i => new string(chars, i * 5, 5)));
+        return "ZSFT-" + string.Join('-', Enumerable.Range(0, 4).Select(i => new string(chars, i * 5, 5)));
     }
 
-    /// <summary>The key as typed, tidied: capitals, no spaces or dashes, without the ZONO prefix.</summary>
+    /// <summary>The key as typed, tidied: capitals, no spaces or dashes, without the four-letter prefix (ZSFT).</summary>
     public static string Normalise(string key)
     {
         var s = new string((key ?? "").ToUpperInvariant().Where(char.IsAsciiLetterOrDigit).ToArray());
-        return s.StartsWith("ZONO", StringComparison.Ordinal) ? s[4..] : s;
+        return s.Length == 24 ? s[4..] : s;
     }
 
+    // The "zono-licence:" label is fixed: every issued key is stored as this hash, so changing it would stop all keys working
     public static string Hash(string key) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes("zono-licence:" + Normalise(key))));
 
     // ---------- Licences ----------

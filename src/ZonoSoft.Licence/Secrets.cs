@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 
-namespace ZonoLicence;
+namespace ZonoSoft.Licence;
 
 /// <summary>
 /// Encrypts customers' personal details and licence keys in the database (AES-256-GCM), and makes lookup hashes
@@ -22,6 +22,7 @@ public sealed class Secrets
             if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(keyPath, UnixFileMode.UserRead | UnixFileMode.UserWrite);
         }
         var master = File.ReadAllBytes(keyPath);
+        // These labels are fixed: everything stored encrypted is tied to them, so changing them would make it unreadable
         _encrypt = HKDF.DeriveKey(HashAlgorithmName.SHA256, master, 32, info: Encoding.UTF8.GetBytes("zono-encrypt"));
         _lookup = HKDF.DeriveKey(HashAlgorithmName.SHA256, master, 32, info: Encoding.UTF8.GetBytes("zono-lookup"));
     }

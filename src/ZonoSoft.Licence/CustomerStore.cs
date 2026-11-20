@@ -3,7 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Data.Sqlite;
 
-namespace ZonoLicence;
+namespace ZonoSoft.Licence;
 
 /// <summary>A customer's portal account. Personal details are stored encrypted (see <see cref="Secrets"/>).</summary>
 public sealed record Account(

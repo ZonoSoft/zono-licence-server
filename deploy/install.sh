@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
 # ZonoSoft licence server — install or update on Ubuntu (run as root):
-#   curl -fsSL https://raw.githubusercontent.com/ZonoSoft/zono-licence-server/main/deploy/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/ZonoSoft/zonosoft-licence-server/main/deploy/install.sh | bash
 # Optional: DOMAIN=licence.example.com before "bash" to use another address.
 set -euo pipefail
 DOMAIN="${DOMAIN:-licence.zonosoft.co.uk}"
-REPO="https://github.com/ZonoSoft/zono-licence-server.git"
-APP=/opt/zono-licence
-DATA=/var/lib/zono-licence
-ETC=/etc/zono-licence
+REPO="https://github.com/ZonoSoft/zonosoft-licence-server.git"
+APP=/opt/zonosoft-licence
+DATA=/var/lib/zonosoft-licence
+ETC=/etc/zonosoft-licence
+SVC=zonosoft-licence
+RUNAS=zonosoft
+BACKUPS=/var/backups/zonosoft-licence
 
 [ "$(id -u)" = 0 ] || { echo "Run this as root (sudo -i first)."; exit 1; }
 echo "== ZonoSoft licence server for $DOMAIN"
@@ -42,38 +45,71 @@ export DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_NOLOGO=1
 
 # The code
 if [ -d "$APP/src/.git" ]; then git -C "$APP/src" fetch -q origin main && git -C "$APP/src" reset -q --hard origin/main; else rm -rf "$APP/src"; git clone -q "$REPO" "$APP/src"; fi
-/opt/dotnet/dotnet publish "$APP/src/src/ZonoLicence" -c Release -r linux-x64 --self-contained true -o "$APP/app.new" -v quiet
+install -d "$APP"
+/opt/dotnet/dotnet publish "$APP/src/src/ZonoSoft.Licence" -c Release -r linux-x64 --self-contained true -o "$APP/app.new" -v quiet
 rm -rf "$APP/app.old"; [ -d "$APP/app" ] && mv "$APP/app" "$APP/app.old"; mv "$APP/app.new" "$APP/app"
 
-# A user for the service; its data and the admin key
-id zonolic >/dev/null 2>&1 || useradd --system --home "$DATA" --shell /usr/sbin/nologin zonolic
-install -d -m 0750 -o zonolic -g zonolic "$DATA"
-install -d -m 0750 -o root -g zonolic "$ETC"
-if [ ! -s "$ETC/admin.key" ]; then
-  echo "zono-admin-$(openssl rand -base64 24 | tr '+/' '-_' | tr -d '=')" > "$ETC/admin.key"
+# One-time move from the server's previous names (zono-licence). The data is copied, the new service is started, and
+# only once it answers are the old service, user and folders removed. If it doesn't answer, the old one is started again.
+MOVED=0
+if [ -d /var/lib/zono-licence ] && [ ! -d "$DATA" ]; then
+  echo "== Moving the licence server to its new name"
+  systemctl disable --now zono-licence-update.timer 2>/dev/null || true
+  systemctl stop zono-licence 2>/dev/null || true
+  cp -a /var/lib/zono-licence "$DATA"
+  cp -a /etc/zono-licence "$ETC"
+  [ -d /var/backups/zono-licence ] && [ ! -d "$BACKUPS" ] && cp -a /var/backups/zono-licence "$BACKUPS"
+  MOVED=1
 fi
-chown root:zonolic "$ETC/admin.key"; chmod 0640 "$ETC/admin.key"
+STARTED=0
+undo_move() {
+  trap - EXIT
+  echo "!! The renamed server didn't start: going back to the previous one"
+  systemctl disable --now "$SVC" 2>/dev/null || true
+  rm -f "/etc/systemd/system/$SVC.service" "/etc/systemd/system/$SVC-update.service" "/etc/systemd/system/$SVC-update.timer" \
+        "/usr/local/sbin/$SVC-update" "/etc/cron.daily/$SVC-backup"
+  systemctl daemon-reload
+  rm -rf "$DATA" "$ETC"
+  systemctl start zono-licence || true
+  systemctl enable --now zono-licence-update.timer || true
+  exit 1
+}
+# Anything going wrong before the renamed server answers puts the previous one back
+if [ "$MOVED" = 1 ]; then trap '[ "$STARTED" = 1 ] || undo_move' EXIT; fi
+
+# A user for the service; its data and the admin key
+id "$RUNAS" >/dev/null 2>&1 || useradd --system --home "$DATA" --shell /usr/sbin/nologin "$RUNAS"
+install -d -m 0750 -o "$RUNAS" -g "$RUNAS" "$DATA"
+chown -R "$RUNAS:$RUNAS" "$DATA"
+install -d -m 0750 -o root -g "$RUNAS" "$ETC"
+if [ ! -s "$ETC/admin.key" ]; then
+  echo "zonosoft-admin-$(openssl rand -base64 24 | tr '+/' '-_' | tr -d '=')" > "$ETC/admin.key"
+fi
+chown root:"$RUNAS" "$ETC/admin.key"; chmod 0640 "$ETC/admin.key"
 # Import key: new app builds are encrypted to it before they're published (deploy/import-downloads.sh)
 if [ ! -s "$ETC/import.key" ]; then
   openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:4096 -out "$ETC/import.key" 2>/dev/null
 fi
 chmod 0600 "$ETC/import.key"
 openssl pkey -in "$ETC/import.key" -pubout -out "$DATA/import-public.pem"
-chown zonolic:zonolic "$DATA/import-public.pem"; chmod 0644 "$DATA/import-public.pem"
+chown "$RUNAS:$RUNAS" "$DATA/import-public.pem"; chmod 0644 "$DATA/import-public.pem"
 
-cat > /etc/systemd/system/zono-licence.service <<UNIT
+# Only Shifenza builds are offered (the previous apps are discontinued)
+find "$DATA/downloads" -maxdepth 1 -name 'Zono*' -delete 2>/dev/null || true
+
+cat > "/etc/systemd/system/$SVC.service" <<UNIT
 [Unit]
 Description=ZonoSoft licence server
 After=network.target
 
 [Service]
-User=zonolic
-Group=zonolic
-Environment=ZONO_DATA=$DATA
-Environment=ZONO_ADMIN_KEY_FILE=$ETC/admin.key
-Environment=ZONO_URLS=http://127.0.0.1:5080
+User=$RUNAS
+Group=$RUNAS
+Environment=ZONOSOFT_DATA=$DATA
+Environment=ZONOSOFT_ADMIN_KEY_FILE=$ETC/admin.key
+Environment=ZONOSOFT_URLS=http://127.0.0.1:5080
 Environment=DOTNET_CLI_TELEMETRY_OPTOUT=1
-ExecStart=$APP/app/zono-licence
+ExecStart=$APP/app/zonosoft-licence
 Restart=always
 RestartSec=3
 NoNewPrivileges=true
@@ -113,6 +149,11 @@ $WEB {
         X-Frame-Options "DENY"
         Permissions-Policy "camera=(), microphone=(), geolocation=()"
     }
+    # The app's pages moved from /workforce to /shifenza
+    redir /workforce /shifenza permanent
+    handle_path /workforce/* {
+        redir * /shifenza{uri} permanent
+    }
     @app path /portal /portal/* /api/* /downloads/*
     handle @app {
         reverse_proxy 127.0.0.1:5080
@@ -151,20 +192,22 @@ fi
 echo "== Web addresses: $(grep -E '^[a-z].* \{$' /etc/caddy/Caddyfile | tr -d '{' | xargs)"
 
 # Daily backup of the licence database (kept 30 days) and the signing key
-cat > /etc/cron.daily/zono-licence-backup <<'BACKUP'
+cat > "/etc/cron.daily/$SVC-backup" <<'BACKUP'
 #!/bin/sh
-mkdir -p /var/backups/zono-licence
-sqlite3 /var/lib/zono-licence/licences.db ".backup /var/backups/zono-licence/licences-$(date +%F).db"
-cp -n /var/lib/zono-licence/signing-key.pem /var/backups/zono-licence/signing-key.pem 2>/dev/null || true
-cp -n /var/lib/zono-licence/secret.key /var/backups/zono-licence/secret.key 2>/dev/null || true
-[ -d /var/lib/zono-licence/vault ] && { mkdir -p -m 700 /var/backups/zono-licence/vault; cp /var/lib/zono-licence/vault/*.vault /var/backups/zono-licence/vault/ 2>/dev/null || true; chmod 600 /var/backups/zono-licence/vault/* 2>/dev/null || true; }
-chmod 600 /var/backups/zono-licence/*.db /var/backups/zono-licence/*.pem /var/backups/zono-licence/*.key 2>/dev/null || true
-find /var/backups/zono-licence -name 'licences-*.db' -mtime +30 -delete
+B=/var/backups/zonosoft-licence
+D=/var/lib/zonosoft-licence
+mkdir -p -m 700 "$B"
+sqlite3 "$D/licences.db" ".backup $B/licences-$(date +%F).db"
+cp -n "$D/signing-key.pem" "$B/signing-key.pem" 2>/dev/null || true
+cp -n "$D/secret.key" "$B/secret.key" 2>/dev/null || true
+[ -d "$D/vault" ] && { mkdir -p -m 700 "$B/vault"; cp "$D"/vault/*.vault "$B/vault/" 2>/dev/null || true; chmod 600 "$B"/vault/* 2>/dev/null || true; }
+chmod 600 "$B"/*.db "$B"/*.pem "$B"/*.key "$B"/*.tar.gz 2>/dev/null || true
+find "$B" -maxdepth 1 \( -name 'licences-*.db' -o -name 'previous-*.tar.gz' \) -mtime +30 -delete
 BACKUP
-chmod 755 /etc/cron.daily/zono-licence-backup
+chmod 755 "/etc/cron.daily/$SVC-backup"
 
 # IP addresses and free-trial device records are never kept: clear any in older backups too
-for f in /var/backups/zono-licence/licences-*.db; do
+for f in "$BACKUPS"/licences-*.db; do
   [ -f "$f" ] || continue
   if [ "$(sqlite3 "$f" "SELECT count(*) FROM events WHERE ip <> '';" 2>/dev/null || echo 0)" != "0" ]; then
     sqlite3 "$f" "UPDATE events SET ip = '' WHERE ip <> ''; VACUUM;" && echo "== Cleared IP addresses from $(basename "$f")"
@@ -180,10 +223,11 @@ for f in /var/backups/zono-licence/licences-*.db; do
 done
 
 # Updates itself: every 15 minutes, if the code on GitHub has changed (or the web addresses' DNS has), install again
-install -m 0755 /dev/stdin /usr/local/sbin/zono-licence-update <<'UPDATE'
+install -m 0755 /dev/stdin "/usr/local/sbin/$SVC-update" <<'UPDATE'
 #!/bin/bash
 set -euo pipefail
-SRC=/opt/zono-licence/src
+SRC=/opt/zonosoft-licence/src
+LOG=/var/log/zonosoft-licence-update.log
 git -C "$SRC" fetch -q origin main
 CHANGED=0
 [ "$(git -C "$SRC" rev-parse HEAD)" != "$(git -C "$SRC" rev-parse origin/main)" ] && CHANGED=1
@@ -193,19 +237,19 @@ for d in zonosoft.co.uk www.zonosoft.co.uk; do
 done
 if [ "$CHANGED" = 1 ]; then
   git -C "$SRC" reset -q --hard origin/main
-  bash "$SRC/deploy/install.sh" >> /var/log/zono-licence-update.log 2>&1
+  bash "$SRC/deploy/install.sh" >> "$LOG" 2>&1
 fi
 # New app installers for the website
-bash "$SRC/deploy/import-downloads.sh" >> /var/log/zono-licence-update.log 2>&1 || true
+bash "$SRC/deploy/import-downloads.sh" >> "$LOG" 2>&1 || true
 UPDATE
-cat > /etc/systemd/system/zono-licence-update.service <<'UNIT'
+cat > "/etc/systemd/system/$SVC-update.service" <<UNIT
 [Unit]
 Description=Update the ZonoSoft licence server from GitHub
 [Service]
 Type=oneshot
-ExecStart=/usr/local/sbin/zono-licence-update
+ExecStart=/usr/local/sbin/$SVC-update
 UNIT
-cat > /etc/systemd/system/zono-licence-update.timer <<'UNIT'
+cat > "/etc/systemd/system/$SVC-update.timer" <<'UNIT'
 [Unit]
 Description=Check for ZonoSoft licence server updates every 15 minutes
 [Timer]
@@ -216,18 +260,43 @@ WantedBy=timers.target
 UNIT
 
 systemctl daemon-reload
-systemctl enable -q --now zono-licence-update.timer
 # Bring in any new app installers now (the timer also checks every 15 minutes)
-bash "$(dirname "$0")/import-downloads.sh" || true
-systemctl enable -q zono-licence caddy
-systemctl restart zono-licence
+bash "$APP/src/deploy/import-downloads.sh" || true
+systemctl enable -q "$SVC" caddy
+systemctl restart "$SVC"
 systemctl reload caddy 2>/dev/null || systemctl restart caddy
-sleep 3
+
+for _ in $(seq 1 20); do
+  if curl -fsS http://127.0.0.1:5080/api/v1/health >/dev/null 2>&1; then STARTED=1; break; fi
+  sleep 3
+done
+if [ "$STARTED" = 0 ] && [ "$MOVED" = 1 ]; then undo_move; fi
+trap - EXIT
+systemctl enable -q --now "$SVC-update.timer"
+
+# The move worked: the previous service, user and folders are removed (a copy of the old folders is kept with the backups
+# for 30 days, readable by root only)
+if [ "$STARTED" = 1 ] && { [ -d /var/lib/zono-licence ] || [ -f /etc/systemd/system/zono-licence.service ]; }; then
+  systemctl disable --now zono-licence-update.timer 2>/dev/null || true
+  systemctl disable zono-licence 2>/dev/null || true
+  rm -f /etc/systemd/system/zono-licence.service /etc/systemd/system/zono-licence-update.service \
+        /etc/systemd/system/zono-licence-update.timer /usr/local/sbin/zono-licence-update /etc/cron.daily/zono-licence-backup
+  systemctl daemon-reload
+  install -d -m 0700 "$BACKUPS"
+  tar -czf "$BACKUPS/previous-$(date +%F).tar.gz" --ignore-failed-read /var/lib/zono-licence /etc/zono-licence 2>/dev/null || true
+  chmod 600 "$BACKUPS"/previous-*.tar.gz 2>/dev/null || true
+  rm -rf /var/lib/zono-licence /etc/zono-licence /var/backups/zono-licence
+  [ -f /var/log/zono-licence-update.log ] && cat /var/log/zono-licence-update.log >> /var/log/zonosoft-licence-update.log && rm -f /var/log/zono-licence-update.log
+  id zonolic >/dev/null 2>&1 && userdel zonolic 2>/dev/null || true
+  # The previous code folder last: this script may have been started from it
+  rm -rf /opt/zono-licence
+  echo "== The licence server now runs as $SVC; the previous service has been removed"
+fi
 
 echo
-if curl -fsS http://127.0.0.1:5080/api/v1/health >/dev/null; then echo "== Licence server is running."; else echo "!! The licence server didn't start: journalctl -u zono-licence -n 50"; fi
+if [ "$STARTED" = 1 ]; then echo "== Licence server is running."; else echo "!! The licence server didn't start: journalctl -u $SVC -n 50"; fi
 echo "== Licence server: https://$DOMAIN  (admin page: https://$DOMAIN/admin)   Website: https://$WEB"
-echo "== Updates itself from GitHub every 15 minutes (log: /var/log/zono-licence-update.log)"
+echo "== Updates itself from GitHub every 15 minutes (log: /var/log/zonosoft-licence-update.log)"
 echo "== Admin key:   sudo cat $ETC/admin.key"
 echo "== Public key for the apps:"
 curl -fsS http://127.0.0.1:5080/api/v1/public-key || true

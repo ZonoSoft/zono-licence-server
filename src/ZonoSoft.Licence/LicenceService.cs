@@ -2,7 +2,7 @@ using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
-namespace ZonoLicence;
+namespace ZonoSoft.Licence;
 
 public sealed record ActivateRequest(string? Key, string? InstallId, string? BusinessName, string? DeviceName, string? Platform, string? AppVersion, string? Nonce = null);
 public sealed record RefreshRequest(string? Token, string? InstallId, string? AppVersion, string? Nonce = null);

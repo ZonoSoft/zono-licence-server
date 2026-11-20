@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace ZonoLicence;
+namespace ZonoSoft.Licence;
 
 /// <summary>
 /// ZonoSoft's private backups (for example the Android signing password). Only the admin key can save, list or
