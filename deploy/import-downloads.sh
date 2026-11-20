@@ -17,7 +17,7 @@ fi
 [ -f "$DIST/dist/manifest.txt" ] || exit 0
 install -d -o zonolic -g zonolic -m 0750 "$DL"
 while read -r sha name; do
-  [[ "$name" =~ ^Zono[A-Za-z0-9._-]+$ ]] || continue
+  [[ "$name" =~ ^(Zono|Shifenza)[A-Za-z0-9._-]+$ ]] || continue
   [[ "$sha" =~ ^[0-9a-f]{64}$ ]] || continue
   if [ -f "$DL/$name" ] && [ "$(cat "$DL/$name.sha256" 2>/dev/null)" = "$sha" ]; then continue; fi
   tmp=$(mktemp -d)

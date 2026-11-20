@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
-<title>Zono licences</title>
+<title>Shifenza licences</title>
 <style>
   :root { --bg:#f3f4f1; --card:#fff; --ink:#1d2321; --muted:#5d6763; --line:#d9ddd8; --accent:#0d6660; --warn:#9a3412; --ok:#166534; }
   * { box-sizing:border-box; }
@@ -34,7 +34,7 @@
 </head>
 <body>
 <header>
-  <h1>Zono licences</h1>
+  <h1>Shifenza licences</h1>
   <div><button id="logout" class="hidden">Lock</button></div>
 </header>
 <main>
@@ -180,7 +180,7 @@ async function load() {
       </td></tr>`;
   }).join("") || `<tr><td colspan="7" class="muted">No licences yet.</td></tr>`;
   const files = await api("/downloads");
-  $("downloads").innerHTML = files.map(f => `<tr><td><a href="/downloads/${encodeURIComponent(f.name)}">${esc(f.name)}</a><div class="muted">SHA-256 ${esc(f.sha256.slice(0, 16))}…</div></td><td>${f.product === "team" ? "Zono Team" : "Zono Workforce"} · ${esc(f.platform)}</td><td>${esc(f.version)}</td><td>${(f.bytes / 1048576).toFixed(1)} MB</td><td>${when(f.uploadedUtc)}</td><td><button class="danger" data-delfile="${esc(f.name)}">Delete</button></td></tr>`).join("") || `<tr><td colspan="6" class="muted">No downloads yet — upload the builds above.</td></tr>`;
+  $("downloads").innerHTML = files.map(f => `<tr><td><a href="/downloads/${encodeURIComponent(f.name)}">${esc(f.name)}</a><div class="muted">SHA-256 ${esc(f.sha256.slice(0, 16))}…</div></td><td>${f.product === "team" ? "Shifenza Team" : "Shifenza"} · ${esc(f.platform)}</td><td>${esc(f.version)}</td><td>${(f.bytes / 1048576).toFixed(1)} MB</td><td>${when(f.uploadedUtc)}</td><td><button class="danger" data-delfile="${esc(f.name)}">Delete</button></td></tr>`).join("") || `<tr><td colspan="6" class="muted">No downloads yet — upload the builds above.</td></tr>`;
   const ev = await api("/events");
   $("events").innerHTML = ev.map(e => `<tr><td class="muted">${when(e.at)}</td><td>${esc(e.what)}</td><td>${esc(e.detail)}</td><td class="muted">${esc(e.licenceId || "")}</td></tr>`).join("");
   window.licences = list;

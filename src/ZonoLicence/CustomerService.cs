@@ -199,7 +199,7 @@ public sealed class CustomerService(CustomerStore customers, LicenceStore licenc
 
     /// <summary>
     /// A licence to pay for from the website: the account's unpaid one (with the chosen plan and team members), or a new
-    /// one. The customer enters its key in Zono Workforce (Settings → Licence) once it's paid.
+    /// one. The customer enters its key in Shifenza (Settings → Licence) once it's paid.
     /// </summary>
     public (Licence? Licence, string? Problem) LicenceToPay(string accountId, BuyRequest r)
     {

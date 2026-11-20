@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 using ZonoLicence;
 
-// Zono licence server: activates and refreshes Zono Workforce licences, with an admin page for ZonoSoft.
+// ZonoSoft licence server: activates and refreshes Shifenza licences, with an admin page for ZonoSoft.
 // Settings (environment): ZONO_DATA (folder for the database and signing key), ZONO_ADMIN_KEY_FILE, ZONO_URLS.
 var builder = WebApplication.CreateBuilder(args);
 var dataDir = Environment.GetEnvironmentVariable("ZONO_DATA") ?? Path.Combine(AppContext.BaseDirectory, "data");
@@ -83,7 +83,7 @@ IResult Send(ApiResult r) => r.Status == 200
 
 app.MapGet("/", (HttpContext c) => c.Request.Host.Host.EndsWith("zonosoft.co.uk", StringComparison.OrdinalIgnoreCase) && !c.Request.Host.Host.StartsWith("licence.", StringComparison.OrdinalIgnoreCase)
     ? Results.Redirect("/portal")
-    : Results.Text("Zono licence server. Customer portal: https://zonosoft.co.uk/portal", "text/plain"));
+    : Results.Text("ZonoSoft licence server. Customer portal: https://zonosoft.co.uk/portal", "text/plain"));
 app.MapGet("/api/v1/health", () => Results.Json(new { ok = true, time = DateTime.UtcNow }));
 // The server's time, signed together with the app's one-off code n (nothing is recorded)
 app.MapGet("/api/v1/time", (string? n, LicenceService svc) => Results.Json(new { ok = true, token = svc.SignedTime(n) }))

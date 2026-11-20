@@ -44,7 +44,7 @@
     const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
     const mb = b => (b / 1048576).toFixed(0) + " MB";
     const day = s => new Date(s).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
-    const app = p => p === "team" ? "Zono Team" : "Zono Workforce";
+    const app = p => p === "team" ? "Shifenza Team" : "Shifenza";
     const who = p => p === "team" ? "For team members: clock in, shifts and holiday" : "For managers: rota, payroll, staff and settings";
     const here = encodeURIComponent(location.pathname);
     Promise.all([

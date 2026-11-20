@@ -178,7 +178,7 @@ public sealed class Payments
         var form = new List<KeyValuePair<string, string>>
         {
             new("url", WebhookUrl),
-            new("description", "Zono licence server: marks licences paid")
+            new("description", "ZonoSoft licence server: marks licences paid")
         };
         form.AddRange(WebhookEvents.Select(ev => new KeyValuePair<string, string>("enabled_events[]", ev)));
         var hook = await CallAsync(key, HttpMethod.Post, "/v1/webhook_endpoints", form, cancel);
@@ -234,7 +234,7 @@ public sealed class Payments
             new("line_items[0][price_data][unit_amount]", pence),
             new("line_items[0][price_data][recurring][interval]", yearly ? "year" : "month"),
             new("line_items[0][price_data][product_data][name]",
-                $"Zono Workforce Suite licence ({(yearly ? "yearly" : "monthly")}, {licence.TeamSeats} team members)"),
+                $"Shifenza licence ({(yearly ? "yearly" : "monthly")}, {licence.TeamSeats} team members)"),
             new("metadata[licence_id]", licence.Id),
             new("subscription_data[metadata][licence_id]", licence.Id),
             new("subscription_data[description]", $"{licence.BusinessName} · licence ending {licence.KeyHint}"),

@@ -9,14 +9,16 @@ public sealed record DownloadFile(string Name, string Product, string Platform, 
 
 /// <summary>
 /// The app installers people download from the website. ZonoSoft uploads them on the admin page; they're kept in the
-/// data folder and the website lists the newest of each (Zono Workforce / Zono Team, Windows / Android).
-/// File names follow the build names, e.g. ZonoWorkforceSuite-v0.32.0-Windows.zip or ZonoTeam-v0.32.0-Android.apk.
+/// data folder and the website lists the newest of each (Shifenza / Shifenza Team, Windows / Android).
+/// File names follow the build names, e.g. Shifenza-v0.37.0-Windows-Setup.exe or ShifenzaTeam-v0.37.0-Android.apk
+/// (before v0.37: ZonoWorkforceSuite-… and ZonoTeam-…).
 /// </summary>
 public sealed partial class Downloads(string folder)
 {
     public const long MaxBytes = 600L * 1024 * 1024;
 
-    [GeneratedRegex(@"^(ZonoWorkforceSuite|ZonoWorkforce|ZonoTeam)-v(\d+\.\d+\.\d+)-(Windows|Android|iOS|Mac|Linux)[A-Za-z0-9_-]*\.(zip|apk|exe|msi|ipa|dmg)$", RegexOptions.IgnoreCase)]
+    // Since v0.37 the apps are Shifenza and Shifenza Team; older builds kept their Zono names
+    [GeneratedRegex(@"^(ShifenzaTeam|Shifenza|ZonoWorkforceSuite|ZonoWorkforce|ZonoTeam)-v(\d+\.\d+\.\d+)-(Windows|Android|iOS|Mac|Linux)[A-Za-z0-9_-]*\.(zip|apk|exe|msi|ipa|dmg)$", RegexOptions.IgnoreCase)]
     private static partial Regex NamePattern();
 
     public static bool ValidName(string? name) => name is not null && name.Length <= 120 && NamePattern().IsMatch(name);
@@ -25,7 +27,7 @@ public sealed partial class Downloads(string folder)
     {
         var m = NamePattern().Match(name);
         if (!m.Success) return null;
-        var product = m.Groups[1].Value.Equals("ZonoTeam", StringComparison.OrdinalIgnoreCase) ? "team" : "workforce";
+        var product = m.Groups[1].Value.EndsWith("Team", StringComparison.OrdinalIgnoreCase) ? "team" : "workforce";
         var platform = CultureInfo.InvariantCulture.TextInfo.ToTitleCase(m.Groups[3].Value.ToLowerInvariant());
         return (product, platform, m.Groups[2].Value);
     }

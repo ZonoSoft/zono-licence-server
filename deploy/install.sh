@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Zono licence server — install or update on Ubuntu (run as root):
+# ZonoSoft licence server — install or update on Ubuntu (run as root):
 #   curl -fsSL https://raw.githubusercontent.com/ZonoSoft/zono-licence-server/main/deploy/install.sh | bash
 # Optional: DOMAIN=licence.example.com before "bash" to use another address.
 set -euo pipefail
@@ -10,7 +10,7 @@ DATA=/var/lib/zono-licence
 ETC=/etc/zono-licence
 
 [ "$(id -u)" = 0 ] || { echo "Run this as root (sudo -i first)."; exit 1; }
-echo "== Zono licence server for $DOMAIN"
+echo "== ZonoSoft licence server for $DOMAIN"
 
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -q
@@ -63,7 +63,7 @@ chown zonolic:zonolic "$DATA/import-public.pem"; chmod 0644 "$DATA/import-public
 
 cat > /etc/systemd/system/zono-licence.service <<UNIT
 [Unit]
-Description=Zono licence server
+Description=ZonoSoft licence server
 After=network.target
 
 [Service]
@@ -199,14 +199,14 @@ bash "$SRC/deploy/import-downloads.sh" >> /var/log/zono-licence-update.log 2>&1 
 UPDATE
 cat > /etc/systemd/system/zono-licence-update.service <<'UNIT'
 [Unit]
-Description=Update the Zono licence server from GitHub
+Description=Update the ZonoSoft licence server from GitHub
 [Service]
 Type=oneshot
 ExecStart=/usr/local/sbin/zono-licence-update
 UNIT
 cat > /etc/systemd/system/zono-licence-update.timer <<'UNIT'
 [Unit]
-Description=Check for Zono licence server updates every 15 minutes
+Description=Check for ZonoSoft licence server updates every 15 minutes
 [Timer]
 OnBootSec=5min
 OnUnitActiveSec=15min

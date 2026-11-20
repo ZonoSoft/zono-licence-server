@@ -1,6 +1,6 @@
-# Zono licence server
+# ZonoSoft licence server
 
-Free trials, registration, licences and the customer portal for Zono Workforce Suite (ZonoSoft). Small ASP.NET Core
+Free trials, registration, licences and the customer portal for Shifenza (ZonoSoft). Small ASP.NET Core
 service with SQLite, behind Caddy for HTTPS.
 
 For the apps:
