@@ -1,2 +1,4 @@
-1bef3231cd0f585c86c1aa1662bc62e949416046e563b0751ae909eb879ee80f Shifenza-v0.37.0-Windows-Setup.exe
-03bf619d70011a30a0e3621abc5ac657c186d510feafb141c7c089e2c4c2216b ShifenzaTeam-v0.37.0-Windows-Setup.exe
+8e55ab38167f61cb3d224776d05e03147dcef5b2f235419dd0cf91c7a396c06d Shifenza-v0.37.1-Windows-Setup.exe
+e6dbedf5da1854c84ea52f312d466d4399aaa602033b37d72d881c348ad5c4a3 ShifenzaTeam-v0.37.1-Windows-Setup.exe
+92cea4162f7cc590a507a97a8c218debe0ac67ffcf75e43e3300dcc4c8832c64 Shifenza-v0.37.1-Android.apk
+092dc91e6e7dfe65669cf58169627a210eb231a507ab47ef73e83f5f5dab7b3b ShifenzaTeam-v0.37.1-Android.apk
