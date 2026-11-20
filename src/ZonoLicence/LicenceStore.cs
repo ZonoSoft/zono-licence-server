@@ -64,6 +64,16 @@ public sealed class LicenceStore
         AddColumn(c, "licences", "account_id", "TEXT NULL");
         AddColumn(c, "licences", "key_enc", "TEXT NOT NULL DEFAULT ''");
 
+        // v6: cancelled licences can be deleted for good. Only the licence id and its key's hash are kept, so the key
+        // can never work or be issued again; nothing about the business is kept.
+        Exec(c, """
+            CREATE TABLE IF NOT EXISTS deleted_licences (
+                id TEXT PRIMARY KEY,
+                key_hash TEXT NOT NULL,
+                deleted TEXT NOT NULL);
+            CREATE INDEX IF NOT EXISTS ix_deleted_key ON deleted_licences(key_hash);
+            """);
+
         // v3 (data minimisation): devices are only described by type, never by the computer's own name
         Exec(c, $"UPDATE activations SET device_name = {DeviceLabelSql} WHERE device_name <> {DeviceLabelSql};");
         ScrubActivationEvents(c);
@@ -184,7 +194,7 @@ public sealed class LicenceStore
     public (Licence Licence, string Key) Create(string businessName, string email, string plan, int teamSeats, DateOnly? expires, int maxActivations, string notes,
         string status = "active", string? accountId = null, Secrets? secrets = null)
     {
-        var key = NewKey();
+        var key = UnusedKey();
         var id = "L" + Convert.ToHexString(RandomNumberGenerator.GetBytes(6));
         using var c = Open();
         using var cmd = c.CreateCommand();
@@ -288,7 +298,7 @@ public sealed class LicenceStore
     /// <summary>A new key for a licence (the old key stops working; activations stay).</summary>
     public string NewKeyFor(string id, Secrets? secrets = null)
     {
-        var key = NewKey();
+        var key = UnusedKey();
         using var c = Open();
         using var cmd = c.CreateCommand();
         cmd.CommandText = "UPDATE licences SET key_hash = $h, key_hint = $k, key_enc = $ke WHERE id = $id;";
@@ -298,6 +308,82 @@ public sealed class LicenceStore
         cmd.Parameters.AddWithValue("$id", id);
         cmd.ExecuteNonQuery();
         return key;
+    }
+
+    /// <summary>A new key that has never belonged to any licence, current or deleted.</summary>
+    private string UnusedKey()
+    {
+        while (true)
+        {
+            var key = NewKey();
+            var hash = Hash(key);
+            using var c = Open();
+            using var cmd = c.CreateCommand();
+            cmd.CommandText = "SELECT (SELECT COUNT(*) FROM licences WHERE key_hash = $h) + (SELECT COUNT(*) FROM deleted_licences WHERE key_hash = $h);";
+            cmd.Parameters.AddWithValue("$h", hash);
+            if (Convert.ToInt64(cmd.ExecuteScalar()) == 0) return key;
+        }
+    }
+
+    // ---------- Deleting cancelled licences ----------
+
+    public bool WasDeleted(string id) => Count("SELECT COUNT(*) FROM deleted_licences WHERE id = $v;", id) > 0;
+    public bool KeyWasDeleted(string key) => Count("SELECT COUNT(*) FROM deleted_licences WHERE key_hash = $v;", Hash(key)) > 0;
+
+    private long Count(string sql, string value)
+    {
+        using var c = Open();
+        using var cmd = c.CreateCommand();
+        cmd.CommandText = sql;
+        cmd.Parameters.AddWithValue("$v", value);
+        return Convert.ToInt64(cmd.ExecuteScalar());
+    }
+
+    /// <summary>
+    /// Deletes a cancelled licence for good: the licence, its activations, its log lines and its payment links.
+    /// Its key (and id) are remembered only as a hash so they can never work again. Deleted data is overwritten in the file.
+    /// Returns false unless the licence exists and is cancelled.
+    /// </summary>
+    public bool DeleteCancelled(string id)
+    {
+        using var c = Open();
+        Exec(c, "PRAGMA secure_delete = ON;");
+        using var tx = c.BeginTransaction();
+        string? keyHash;
+        using (var get = c.CreateCommand())
+        {
+            get.Transaction = tx;
+            get.CommandText = "SELECT key_hash FROM licences WHERE id = $id AND status = 'revoked';";
+            get.Parameters.AddWithValue("$id", id);
+            keyHash = get.ExecuteScalar() as string;
+        }
+        if (keyHash is null) return false;
+        var sqls = new List<string>
+        {
+            "INSERT OR REPLACE INTO deleted_licences(id, key_hash, deleted) VALUES ($id, $h, $now);",
+            "DELETE FROM activations WHERE licence_id = $id;",
+            "DELETE FROM events WHERE licence_id = $id;",
+            "DELETE FROM licences WHERE id = $id;"
+        };
+        using (var t = c.CreateCommand())
+        {
+            t.Transaction = tx;
+            t.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'stripe_links';";
+            if (Convert.ToInt64(t.ExecuteScalar()) > 0) sqls.Add("DELETE FROM stripe_links WHERE local_id = $id;");
+        }
+        foreach (var sql in sqls)
+        {
+            using var cmd = c.CreateCommand();
+            cmd.Transaction = tx;
+            cmd.CommandText = sql;
+            cmd.Parameters.AddWithValue("$id", id);
+            cmd.Parameters.AddWithValue("$h", keyHash);
+            cmd.Parameters.AddWithValue("$now", Now());
+            cmd.ExecuteNonQuery();
+        }
+        tx.Commit();
+        Exec(c, "PRAGMA wal_checkpoint(TRUNCATE);");
+        return true;
     }
 
     // ---------- Activations ----------

@@ -84,6 +84,10 @@ public sealed class LicenceService(LicenceStore store, TokenSigner signer, TimeP
             return new(400, null, "bad_request", "Enter the licence key.");
         var licence = store.FindByKey(r.Key);
         // Activations and checks aren't logged: only sales are (see LicenceStore.ActivityEvents)
+        if (licence is null && store.KeyWasDeleted(r.Key))
+        {
+            return new(403, null, "revoked", "This licence has been cancelled. Contact ZonoSoft.");
+        }
         if (licence is null)
         {
             return new(404, null, "unknown_key", "That licence key wasn't found. Check it and try again.");
@@ -116,6 +120,8 @@ public sealed class LicenceService(LicenceStore store, TokenSigner signer, TimeP
         var lid = (string?)payload["lid"];
         var iid = (string?)payload["iid"];
         var licence = lid is null ? null : store.Get(lid);
+        if (licence is null && lid is not null && store.WasDeleted(lid))
+            return new(404, null, "unknown_licence", "This licence has been cancelled. Contact ZonoSoft.");
         if (licence is null || iid is null) return new(404, null, "unknown_licence", "This licence no longer exists. Enter a licence key.");
         if (licence.Status == "pending") return new(402, null, "awaiting_payment", "This licence is waiting for payment.");
         if (!store.IsActive(licence.Id, iid))

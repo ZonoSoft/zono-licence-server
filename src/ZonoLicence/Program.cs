@@ -330,6 +330,15 @@ admin.MapPost("/licences/{id}/new-key", (string id, LicenceStore s, HttpContext 
     return Results.Json(new { ok = true, key });
 });
 
+// Deletes a cancelled licence for good (its key can never be used again)
+admin.MapPost("/licences/{id}/delete", (string id, LicenceStore s) =>
+{
+    if (s.Get(id) is not { } l) return Results.NotFound();
+    if (l.Status != "revoked") return Results.Json(new { ok = false, message = "Cancel the licence first; only cancelled licences can be deleted." }, statusCode: 409);
+    if (!s.DeleteCancelled(id)) return Results.Json(new { ok = false, message = "It couldn't be deleted." }, statusCode: 409);
+    s.Log(null, "licence deleted", "A cancelled licence was deleted; its key can't be used again.");
+    return Results.Json(new { ok = true });
+});
 admin.MapPost("/activations/{id:long}/release", (long id, LicenceStore s, HttpContext c) =>
 {
     s.ReleaseById(id);

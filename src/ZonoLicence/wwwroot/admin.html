@@ -30,6 +30,9 @@
   .hidden { display:none; }
   .table-wrap { overflow-x:auto; }
   details summary { cursor:pointer; color:var(--accent); font-weight:600; }
+  input[type=checkbox] { width:auto; transform:scale(1.2); }
+  .bulk { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:0 0 10px; }
+  .bulk button:disabled { opacity:.45; cursor:default; }
 </style>
 </head>
 <body>
@@ -77,8 +80,12 @@
 
     <section class="card">
       <h2>Licences <button id="refresh" style="float:right">Refresh</button></h2>
+      <div class="bulk"><span id="licCount" class="muted">None selected</span>
+        <button class="danger" id="bulkCancel" disabled>Cancel selected</button>
+        <button id="bulkRelease" disabled>Deactivate devices</button>
+        <button class="danger" id="bulkDelete" disabled>Delete selected</button></div>
       <div class="table-wrap"><table>
-        <thead><tr><th>Business</th><th>Plan</th><th>Team</th><th>Paid until</th><th>Status</th><th>Used on</th><th></th></tr></thead>
+        <thead><tr><th><input type="checkbox" id="allLic" aria-label="Select all licences"></th><th>Business</th><th>Plan</th><th>Team</th><th>Paid until</th><th>Status</th><th>Used on</th><th></th></tr></thead>
         <tbody id="rows"></tbody>
       </table></div>
     </section>
@@ -88,8 +95,9 @@
       <p class="muted">Upload the builds with their own file names (e.g. ZonoWorkforceSuite-v0.32.0-Windows.zip, ZonoWorkforce-v0.32.0-Android.apk, ZonoTeam-v0.32.0-Windows.zip, ZonoTeam-v0.32.0-Android.apk). The website offers the newest of each.</p>
       <p><input id="upFiles" type="file" multiple accept=".zip,.apk,.exe,.msi"> <button class="primary" id="upGo">Upload</button></p>
       <div id="upProgress" class="muted"></div>
+      <div class="bulk"><span id="fileCount" class="muted">None selected</span> <button class="danger" id="bulkFiles" disabled>Delete selected</button></div>
       <div class="table-wrap"><table>
-        <thead><tr><th>File</th><th>App</th><th>Version</th><th>Size</th><th>Uploaded</th><th></th></tr></thead>
+        <thead><tr><th><input type="checkbox" id="allFiles" aria-label="Select all downloads"></th><th>File</th><th>App</th><th>Version</th><th>Size</th><th>Uploaded</th><th></th></tr></thead>
         <tbody id="downloads"></tbody>
       </table></div>
     </section>
@@ -176,6 +184,7 @@ async function load() {
     const status = l.status === "active" && l.expires && new Date(l.expires) < new Date(new Date().toDateString()) ? "expired" : l.status;
     const acts = l.activations.filter(a => !a.released);
     return `<tr>
+      <td><input type="checkbox" class="selLic" value="${esc(l.id)}" aria-label="Select ${esc(l.businessName)}"></td>
       <td><strong>${esc(l.businessName)}</strong><div class="muted">${esc(l.email)} · key …${esc(l.keyHint)} · ${esc(l.id)}</div>${l.account ? `<div class="muted">Account <strong>${esc(l.account.username)}</strong> · ${esc(l.account.contactName)} · ${esc(l.account.email)} · ${esc(l.account.phone)}</div>` : ""}${l.notes ? `<div class="muted">${esc(l.notes)}</div>` : ""}</td>
       <td>${esc(l.plan)}</td><td>${l.teamSeats}</td><td>${esc(l.expires || "—")}</td>
       <td><span class="pill ${status}">${status}</span></td>
@@ -183,16 +192,69 @@ async function load() {
       <td style="white-space:nowrap">
         ${l.status === "pending" ? `<button class="primary" data-paid="${l.id}">Mark paid</button>` : ""}
         <button data-edit="${l.id}">Change</button>
-        ${l.status === "revoked" ? `<button data-restore="${l.id}">Restore</button>` : `<button class="danger" data-revoke="${l.id}">Cancel</button>`}
+        ${l.status === "revoked" ? `<button data-restore="${l.id}">Restore</button> <button class="danger" data-delete="${l.id}">Delete</button>` : `<button class="danger" data-revoke="${l.id}">Cancel</button>`}
         <button data-newkey="${l.id}">New key</button>
       </td></tr>`;
-  }).join("") || `<tr><td colspan="7" class="muted">No licences yet.</td></tr>`;
+  }).join("") || `<tr><td colspan="8" class="muted">No licences yet.</td></tr>`;
   const files = await api("/downloads");
-  $("downloads").innerHTML = files.map(f => `<tr><td><a href="/downloads/${encodeURIComponent(f.name)}">${esc(f.name)}</a><div class="muted">SHA-256 ${esc(f.sha256.slice(0, 16))}…</div></td><td>${f.product === "team" ? "Shifenza Team" : "Shifenza"} · ${esc(f.platform)}</td><td>${esc(f.version)}</td><td>${(f.bytes / 1048576).toFixed(1)} MB</td><td>${when(f.uploadedUtc)}</td><td><button class="danger" data-delfile="${esc(f.name)}">Delete</button></td></tr>`).join("") || `<tr><td colspan="6" class="muted">No downloads yet — upload the builds above.</td></tr>`;
+  $("downloads").innerHTML = files.map(f => `<tr><td><input type="checkbox" class="selFile" value="${esc(f.name)}" aria-label="Select ${esc(f.name)}"></td><td><a href="/downloads/${encodeURIComponent(f.name)}">${esc(f.name)}</a><div class="muted">SHA-256 ${esc(f.sha256.slice(0, 16))}…</div></td><td>${f.product === "team" ? "Shifenza Team" : "Shifenza"} · ${esc(f.platform)}</td><td>${esc(f.version)}</td><td>${(f.bytes / 1048576).toFixed(1)} MB</td><td>${when(f.uploadedUtc)}</td><td><button class="danger" data-delfile="${esc(f.name)}">Delete</button></td></tr>`).join("") || `<tr><td colspan="7" class="muted">No downloads yet — upload the builds above.</td></tr>`;
   const ev = await api("/events");
   $("events").innerHTML = ev.map(e => `<tr><td class="muted">${when(e.at)}</td><td>${esc(e.what)}</td><td>${esc(e.detail)}</td><td class="muted">${esc(e.licenceId || "")}</td></tr>`).join("");
   window.licences = list;
+  $("allLic").checked = false; $("allFiles").checked = false;
+  updateBulk();
 }
+
+// ---------- Selecting several ----------
+const picked = cls => [...document.querySelectorAll("input." + cls + ":checked")].map(c => c.value);
+function updateBulk() {
+  const lic = picked("selLic"), files = picked("selFile");
+  $("licCount").textContent = lic.length ? `${lic.length} selected` : "None selected";
+  $("fileCount").textContent = files.length ? `${files.length} selected` : "None selected";
+  ["bulkCancel", "bulkRelease", "bulkDelete"].forEach(id => $(id).disabled = !lic.length);
+  $("bulkFiles").disabled = !files.length;
+}
+document.addEventListener("change", e => {
+  if (e.target.id === "allLic") document.querySelectorAll("input.selLic").forEach(c => c.checked = e.target.checked);
+  if (e.target.id === "allFiles") document.querySelectorAll("input.selFile").forEach(c => c.checked = e.target.checked);
+  updateBulk();
+});
+async function forEach(items, step, done) {
+  let ok = 0, failed = 0;
+  for (const x of items) { try { await step(x); ok++; } catch { failed++; } }
+  alert(done(ok) + (failed ? ` ${failed} couldn't be done.` : ""));
+  load();
+}
+const chosenLicences = () => picked("selLic").map(id => window.licences.find(l => l.id === id)).filter(Boolean);
+const names = ls => ls.slice(0, 8).map(l => "• " + l.businessName).join("\n") + (ls.length > 8 ? `\n…and ${ls.length - 8} more` : "");
+$("bulkCancel").onclick = () => {
+  const ls = chosenLicences().filter(l => l.status !== "revoked");
+  if (!ls.length) { alert("Those are already cancelled."); return; }
+  if (!confirm(`Cancel ${ls.length} licence${ls.length === 1 ? "" : "s"}? The apps go read-only at their next check.\n\n${names(ls)}`)) return;
+  forEach(ls, l => api(`/licences/${l.id}`, { status: "revoked" }), n => `Cancelled ${n}.`);
+};
+$("bulkRelease").onclick = () => {
+  const acts = chosenLicences().flatMap(l => l.activations.filter(a => !a.released));
+  if (!acts.length) { alert("None of those are in use on any device."); return; }
+  if (!confirm(`Deactivate ${acts.length} device${acts.length === 1 ? "" : "s"}? Those businesses will need to enter the key again (it can then be used elsewhere).`)) return;
+  forEach(acts, a => api(`/activations/${a.id}/release`, {}), n => `Deactivated ${n} device${n === 1 ? "" : "s"}.`);
+};
+$("bulkDelete").onclick = () => {
+  const ls = chosenLicences();
+  const live = ls.filter(l => l.status !== "revoked");
+  let msg = `Delete ${ls.length} licence${ls.length === 1 ? "" : "s"} for good?\n\n${names(ls)}\n\nThey disappear from this page, the customers' portals and the logs, and their keys can never be used again. This can't be undone.`;
+  if (live.length) msg += `\n\n${live.length} of them ${live.length === 1 ? "isn't" : "aren't"} cancelled yet: ${live.length === 1 ? "it" : "they"} will be cancelled first.`;
+  if (!confirm(msg)) return;
+  forEach(ls, async l => {
+    if (l.status !== "revoked") await api(`/licences/${l.id}`, { status: "revoked" });
+    await api(`/licences/${l.id}/delete`, {});
+  }, n => `Deleted ${n}.`);
+};
+$("bulkFiles").onclick = () => {
+  const fs = picked("selFile");
+  if (!confirm(`Delete ${fs.length} file${fs.length === 1 ? "" : "s"} from the website?\n\n${fs.slice(0, 8).join("\n")}${fs.length > 8 ? "\n…" : ""}`)) return;
+  forEach(fs, f => api(`/downloads/${encodeURIComponent(f)}/delete`, {}), n => `Deleted ${n} file${n === 1 ? "" : "s"}.`);
+};
 
 $("go").onclick = open;
 $("adminKey").onkeydown = e => { if (e.key === "Enter") open(); };
@@ -219,6 +281,11 @@ $("rows").onclick = async e => {
   const b = e.target.closest("button"); if (!b) return;
   if (b.dataset.revoke && confirm("Cancel this licence? The apps go read-only at their next check (within a week).")) await api(`/licences/${b.dataset.revoke}`, { status: "revoked" });
   if (b.dataset.restore) await api(`/licences/${b.dataset.restore}`, { status: "active" });
+  if (b.dataset.delete) {
+    const l = window.licences.find(x => x.id === b.dataset.delete);
+    if (!confirm(`Delete ${l ? l.businessName : "this licence"} for good?\n\nIt disappears from this page, the customer's portal and the logs, and its key can never be used again. This can't be undone.`)) return;
+    await api(`/licences/${b.dataset.delete}/delete`, {});
+  }
   if (b.dataset.paid) {
     const l = window.licences.find(x => x.id === b.dataset.paid);
     const next = new Date(); if (l.plan === "yearly") next.setFullYear(next.getFullYear() + 1); else next.setMonth(next.getMonth() + 1);
