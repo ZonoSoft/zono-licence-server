@@ -96,6 +96,13 @@
 
 
     <section class="card">
+      <h2>Private vault</h2>
+      <p class="muted">ZonoSoft's own backups, such as the Android signing password. Only this admin key can see or download them; they're encrypted on the server and never on the website.</p>
+      <p><input type="file" id="vaultFile"> <button id="vaultGo">Save to vault</button> <span id="vaultMsg" class="muted"></span></p>
+      <div class="table-wrap"><table><tbody id="vault"></tbody></table></div>
+    </section>
+
+    <section class="card">
       <details><summary>Activity log</summary><div class="table-wrap"><table><tbody id="events"></tbody></table></div></details>
       <p><button id="backup">Download a backup of the licence database</button></p>
     </section>
@@ -114,7 +121,7 @@ async function api(path, body) {
     body: body === undefined ? undefined : JSON.stringify(body)
   });
   if (r.status === 401) { lock("That admin key isn't right."); throw new Error("401"); }
-  if (path === "/backup") return r;
+  if (path === "/backup" || path.startsWith("/vault/") && body === undefined) return r;
   const j = await r.json();
   if (!r.ok) { alert(j.message || "Something went wrong."); throw new Error(r.status); }
   return j;
@@ -163,6 +170,7 @@ $("stripeSave").onclick = async () => {
 
 async function load() {
   loadPayments().catch(() => {});
+  loadVault().catch(() => {});
   const list = await api("/licences");
   $("rows").innerHTML = list.map(l => {
     const status = l.status === "active" && l.expires && new Date(l.expires) < new Date(new Date().toDateString()) ? "expired" : l.status;
@@ -260,6 +268,34 @@ $("downloads").onclick = async e => {
   if (!confirm("Delete " + b.dataset.delfile + " from the website?")) return;
   await api(`/downloads/${encodeURIComponent(b.dataset.delfile)}/delete`, {});
   load();
+};
+
+async function loadVault() {
+  const items = await api("/vault");
+  $("vault").innerHTML = items.map(f => `<tr><td>${esc(f.name)}</td><td>${f.bytes} bytes</td><td>${when(f.savedUtc)}</td><td><button data-vget="${esc(f.name)}">Download</button> <button class="danger" data-vdel="${esc(f.name)}">Delete</button></td></tr>`).join("") || `<tr><td class="muted">Nothing in the vault yet.</td></tr>`;
+}
+$("vaultGo").onclick = async () => {
+  const f = $("vaultFile").files[0];
+  if (!f) { $("vaultMsg").textContent = "Choose a file first."; return; }
+  if (f.size > 1048576) { $("vaultMsg").textContent = "Files in the vault can be up to 1 MB."; return; }
+  const r = await fetch("/api/admin/vault?name=" + encodeURIComponent(f.name), { method: "POST", headers: { "Authorization": "Bearer " + key, "Content-Type": "application/octet-stream" }, body: f });
+  const j = await r.json().catch(() => ({}));
+  $("vaultMsg").textContent = r.ok ? `${f.name}: saved.` : (j.message || `Not saved (${r.status}).`);
+  $("vaultFile").value = "";
+  loadVault();
+};
+$("vault").onclick = async e => {
+  const g = e.target.closest("button[data-vget]"), d = e.target.closest("button[data-vdel]");
+  if (g) {
+    const r = await api("/vault/" + encodeURIComponent(g.dataset.vget));
+    if (!r.ok) { alert("Couldn't download it."); return; }
+    const a = document.createElement("a"); a.href = URL.createObjectURL(await r.blob()); a.download = g.dataset.vget; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  } else if (d) {
+    if (!confirm("Delete " + d.dataset.vdel + " from the vault? This can't be undone.")) return;
+    await api(`/vault/${encodeURIComponent(d.dataset.vdel)}/delete`, {});
+    loadVault();
+  }
 };
 
 $("backup").onclick = async () => {

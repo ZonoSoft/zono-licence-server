@@ -26,6 +26,7 @@ builder.Services.AddSingleton(sp => new Payments(dataDir, Path.Combine(dataDir, 
 builder.Services.AddSingleton<CustomerService>();
 builder.Services.AddHostedService<Retention>();
 builder.Services.AddSingleton(_ => new Downloads(Path.Combine(dataDir, "downloads")));
+builder.Services.AddSingleton(sp => new Vault(Path.Combine(dataDir, "vault"), sp.GetRequiredService<Secrets>()));
 builder.Services.Configure<ForwardedHeadersOptions>(o =>
 {
     // Caddy on the same server passes the visitor's address
@@ -370,6 +371,35 @@ admin.MapPost("/downloads/{name}/delete", (string name, Downloads d, LicenceStor
 {
     if (!d.Delete(name)) return Results.NotFound();
     s.Log(null, "download deleted", name);
+    return Results.Json(new { ok = true });
+});
+
+// Private backups (admin key only; encrypted on disk; never on the website)
+admin.MapGet("/vault", (Vault v) => Results.Json(v.All()));
+admin.MapPost("/vault", async (HttpContext c, Vault v, LicenceStore s) =>
+{
+    var name = c.Request.Query["name"].ToString();
+    if (!Vault.ValidName(name)) return Results.Json(new { ok = false, message = "Use a plain file name (letters, numbers, dots, dashes)." }, statusCode: 400);
+    try
+    {
+        var saved = await v.SaveAsync(name, c.Request.Body, c.RequestAborted);
+        s.Log(null, "vault saved", name);
+        return Results.Json(new { ok = true, file = saved });
+    }
+    catch (InvalidDataException e) { return Results.Json(new { ok = false, message = e.Message }, statusCode: 400); }
+}).WithMetadata(new Microsoft.AspNetCore.Mvc.RequestSizeLimitAttribute(Vault.MaxBytes + 1024));
+admin.MapGet("/vault/{name}", (string name, Vault v, LicenceStore s) =>
+{
+    if (!Vault.ValidName(name)) return Results.NotFound();
+    var bytes = v.Read(name);
+    if (bytes is null) return Results.NotFound();
+    s.Log(null, "vault downloaded", name);
+    return Results.File(bytes, "application/octet-stream", name);
+});
+admin.MapPost("/vault/{name}/delete", (string name, Vault v, LicenceStore s) =>
+{
+    if (!Vault.ValidName(name) || !v.Delete(name)) return Results.NotFound();
+    s.Log(null, "vault deleted", name);
     return Results.Json(new { ok = true });
 });
 

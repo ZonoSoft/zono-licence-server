@@ -157,7 +157,8 @@ mkdir -p /var/backups/zono-licence
 sqlite3 /var/lib/zono-licence/licences.db ".backup /var/backups/zono-licence/licences-$(date +%F).db"
 cp -n /var/lib/zono-licence/signing-key.pem /var/backups/zono-licence/signing-key.pem 2>/dev/null || true
 cp -n /var/lib/zono-licence/secret.key /var/backups/zono-licence/secret.key 2>/dev/null || true
-chmod 600 /var/backups/zono-licence/*
+[ -d /var/lib/zono-licence/vault ] && { mkdir -p -m 700 /var/backups/zono-licence/vault; cp /var/lib/zono-licence/vault/*.vault /var/backups/zono-licence/vault/ 2>/dev/null || true; chmod 600 /var/backups/zono-licence/vault/* 2>/dev/null || true; }
+chmod 600 /var/backups/zono-licence/*.db /var/backups/zono-licence/*.pem /var/backups/zono-licence/*.key 2>/dev/null || true
 find /var/backups/zono-licence -name 'licences-*.db' -mtime +30 -delete
 BACKUP
 chmod 755 /etc/cron.daily/zono-licence-backup
