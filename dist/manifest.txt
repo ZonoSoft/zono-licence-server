@@ -1,2 +1,2 @@
-5af1f53405014731ed24f5a374ba6e0fb2b12c09d6e534420cd1f2a52638235d ZonoWorkforceSuite-v0.36.0-Windows-Setup.exe
-5e7564b7d7afdb6bf5e151693140a108d0639c496f2605282b12e7f27bbf4771 ZonoTeam-v0.36.0-Windows-Setup.exe
+1bef3231cd0f585c86c1aa1662bc62e949416046e563b0751ae909eb879ee80f Shifenza-v0.37.0-Windows-Setup.exe
+03bf619d70011a30a0e3621abc5ac657c186d510feafb141c7c089e2c4c2216b ShifenzaTeam-v0.37.0-Windows-Setup.exe
