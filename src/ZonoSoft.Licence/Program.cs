@@ -104,12 +104,13 @@ app.MapGet("/api/v1/downloads", (Downloads d) => Results.Json(d.Latest().Select(
 {
     f.Name, f.Product, f.Platform, f.Version, f.Bytes, f.Sha256, f.UploadedUtc, Url = "/downloads/" + f.Name
 })));
-// Only people signed in to a ZonoSoft account can download
-// Downloads need a signed-in account; they aren't logged
+// Shifenza needs a signed-in ZonoSoft account to download; the free Shifenza Team app (for a business's staff, who
+// get the link from their manager) doesn't. Downloads aren't logged.
 app.MapGet("/downloads/{name}", (string name, Downloads d, CustomerStore store, HttpContext c) =>
 {
     if (!Downloads.ValidName(name) || !File.Exists(d.PathOf(name))) return Results.NotFound();
-    if (store.SessionAccount(SessionToken(c)) is null)
+    var teamApp = name.StartsWith("ShifenzaTeam-", StringComparison.Ordinal);
+    if (!teamApp && store.SessionAccount(SessionToken(c)) is null)
         return Results.Redirect("/portal?next=" + Uri.EscapeDataString("/software"));
     c.Response.Headers.CacheControl = "private, no-store";
     return Results.File(d.PathOf(name), Downloads.ContentType(name), name, enableRangeProcessing: true);
@@ -125,10 +126,11 @@ app.MapPost("/api/v1/update", (UpdateRequest r, Downloads d, LicenceStore licenc
 {
     if (r.MachineId is not { Length: >= 16 and <= 128 } mid)
         return Results.Json(new { ok = false, message = "Missing check code." }, statusCode: 400);
-    var licensed = licensing.Read(r.Token) is { } t && (string?)t["lid"] is { } lid && licences.Get(lid) is { Status: not "revoked" };
-    if (!licensed)
-        return Results.Json(new { ok = false, message = "Updates need a licence or demo key." }, statusCode: 403);
     var product = r.Product?.ToLowerInvariant() == "team" ? "team" : "workforce";
+    // Shifenza needs its licence or demo key; the free Shifenza Team app (which has no key of its own) is always answered
+    var licensed = licensing.Read(r.Token) is { } t && (string?)t["lid"] is { } lid && licences.Get(lid) is { Status: not "revoked" };
+    if (!licensed && product != "team")
+        return Results.Json(new { ok = false, message = "Updates need a licence or demo key." }, statusCode: 403);
     var platform = (r.Platform ?? "").ToLowerInvariant();
     var ext = platform switch { "windows" => ".exe", "android" => ".apk", _ => null };
     if (ext is null || !Version.TryParse(r.AppVersion, out var current)) return Results.Json(new { ok = true, update = false });

@@ -1,6 +1,6 @@
 // ZonoSoft software catalogue: tabs per operating system; choosing an app opens its page
 // (product information, minimum and recommended specification, setup guide, download).
-// Pages: /software#windows (a tab) and /software#windows/shifenza (an app). Downloads need a ZonoSoft account.
+// Pages: /software#windows (a tab) and /software#windows/shifenza (an app). Shifenza downloads need a ZonoSoft account; the free Team app does not.
 (() => {
   const root = document.getElementById("catalog");
   if (!root) return;
@@ -54,7 +54,7 @@
     const here = encodeURIComponent("/software#" + platform.id + "/" + product.id);
     const download = !f
       ? `<p class="notice">The ${esc(platform.name)} version is being updated. Please try again shortly, or ${contact}.</p>`
-      : session.signedIn
+      : session.signedIn || product.download === "team"
         ? `<p><a class="btn" href="${esc(f.url)}" download>Download ${esc(product.name)} for ${esc(platform.short || platform.name)} (${mb(f.bytes)})</a></p>
            <p class="small">Version ${esc(f.version)}, ${day(f.uploadedUtc)}.</p><p class="hash">SHA-256: ${esc(f.sha256)}</p>`
         : `<div class="notice dl-gate">
