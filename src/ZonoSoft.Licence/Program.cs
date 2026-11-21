@@ -289,7 +289,7 @@ object Describe(LicenceStore s, Licence l) => new
 {
     Account = l.AccountId is { } aid && app.Services.GetRequiredService<CustomerStore>().GetAccount(aid) is { } a
         ? new { a.Id, a.Username, a.ContactName, a.Email, Phone = a.PhoneCountry + " " + a.Phone, a.BusinessName } : null,
-    l.Id, l.KeyHint, l.BusinessName, l.Email, l.Plan, l.TeamSeats,
+    l.Id, l.KeyHint, l.BusinessName, l.Email, l.Plan, l.TeamSeats, l.Product, ProductName = Products.NameOf(l.Product),
     Expires = l.Expires?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), l.MaxActivations, l.Status, l.Notes, l.CreatedUtc,
     Activations = s.Activations(l.Id).Select(a => new { a.Id, a.InstallId, a.BusinessName, a.DeviceName, a.Platform, a.AppVersion, a.FirstSeenUtc, a.LastSeenUtc, a.Released })
 };
@@ -297,15 +297,18 @@ object Describe(LicenceStore s, Licence l) => new
 admin.MapGet("/licences", (LicenceStore s) => Results.Json(s.All().Select(l => Describe(s, l))));
 admin.MapGet("/events", (LicenceStore s) => Results.Json(s.Events().Select(e => new { e.At, e.LicenceId, e.What, e.Detail })));
 
+admin.MapGet("/products", () => Results.Json(Products.All));
+
 admin.MapPost("/licences", (NewLicence n, LicenceStore s, HttpContext c) =>
 {
     if (string.IsNullOrWhiteSpace(n.BusinessName)) return Results.Json(new { ok = false, message = "Enter the business name." }, statusCode: 400);
+    if (Products.Find(n.Product ?? Products.Default) is not { } product) return Results.Json(new { ok = false, message = "Choose the software the key is for." }, statusCode: 400);
     DateOnly? expires = DateOnly.TryParse(n.Expires, CultureInfo.InvariantCulture, out var d) ? d : null;
     // A demo key works up to and including its last day (UK time); 14 days unless another date is chosen
     if (n.Plan == "demo") expires ??= LicenceService.UkToday(DateTime.UtcNow).AddDays(13);
     var (licence, key) = s.Create(n.BusinessName, n.Email ?? "", n.Plan ?? "monthly", Math.Clamp(n.TeamSeats ?? 5, 1, 10000), expires,
-        Math.Clamp(n.MaxActivations ?? 1, 1, 50), n.Notes ?? "", secrets: c.RequestServices.GetRequiredService<Secrets>());
-    s.Log(licence.Id, "created", $"{licence.BusinessName} · {licence.Plan} · {licence.TeamSeats} team members");
+        Math.Clamp(n.MaxActivations ?? 1, 1, 50), n.Notes ?? "", secrets: c.RequestServices.GetRequiredService<Secrets>(), product: product.Id);
+    s.Log(licence.Id, "created", $"{product.Name} · {licence.BusinessName} · {licence.Plan} · {licence.TeamSeats} team members");
     return Results.Json(new { ok = true, key, licence = Describe(s, licence) });
 });
 
@@ -315,7 +318,7 @@ admin.MapPost("/licences/{id}", (string id, LicenceChange ch, LicenceStore s, Ht
     DateOnly? expires = DateOnly.TryParse(ch.Expires, CultureInfo.InvariantCulture, out var d) ? d : null;
     var status = ch.Status is "active" or "revoked" or "pending" ? ch.Status : null;
     s.Update(id, ch.BusinessName, ch.Email, ch.Plan, ch.TeamSeats is { } t ? Math.Clamp(t, 1, 10000) : null, expires, ch.Expires == "",
-        ch.MaxActivations is { } m ? Math.Clamp(m, 1, 50) : null, status, ch.Notes);
+        ch.MaxActivations is { } m ? Math.Clamp(m, 1, 50) : null, status, ch.Notes, ch.Product);
     s.Log(id, "changed", System.Text.Json.JsonSerializer.Serialize(ch));
     return Results.Json(new { ok = true, licence = Describe(s, s.Get(id)!) });
 });
@@ -421,8 +424,8 @@ admin.MapGet("/backup", (LicenceStore s) =>
 
 app.Run();
 
-public sealed record NewLicence(string BusinessName, string? Email, string? Plan, int? TeamSeats, string? Expires, int? MaxActivations, string? Notes);
-public sealed record LicenceChange(string? BusinessName, string? Email, string? Plan, int? TeamSeats, string? Expires, int? MaxActivations, string? Status, string? Notes);
+public sealed record NewLicence(string BusinessName, string? Email, string? Plan, int? TeamSeats, string? Expires, int? MaxActivations, string? Notes, string? Product = null);
+public sealed record LicenceChange(string? BusinessName, string? Email, string? Plan, int? TeamSeats, string? Expires, int? MaxActivations, string? Status, string? Notes, string? Product = null);
 
 public partial class Program;
 

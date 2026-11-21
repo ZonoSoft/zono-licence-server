@@ -7,7 +7,7 @@ namespace ZonoSoft.Licence;
 
 public sealed record Licence(
     string Id, string KeyHint, string BusinessName, string Email, string Plan, int TeamSeats, DateOnly? Expires,
-    int MaxActivations, string Status, string Notes, DateTime CreatedUtc, string? AccountId = null);
+    int MaxActivations, string Status, string Notes, DateTime CreatedUtc, string? AccountId = null, string Product = Products.Default);
 
 public sealed record Activation(
     long Id, string LicenceId, string InstallId, string BusinessName, string DeviceName, string Platform, string AppVersion,
@@ -63,6 +63,8 @@ public sealed class LicenceStore
         // v2: licences belong to a customer account; the key is also kept encrypted so the customer can see it in the portal
         AddColumn(c, "licences", "account_id", "TEXT NULL");
         AddColumn(c, "licences", "key_enc", "TEXT NOT NULL DEFAULT ''");
+        // v7: which ZonoSoft software the licence is for
+        AddColumn(c, "licences", "product", "TEXT NOT NULL DEFAULT 'shifenza'");
 
         // v6: cancelled licences can be deleted for good. Only the licence id and its key's hash are kept, so the key
         // can never work or be issued again; nothing about the business is kept.
@@ -193,18 +195,19 @@ public sealed class LicenceStore
 
     /// <summary>Makes a licence. Returns it and its key (shown once; only the hash is kept).</summary>
     public (Licence Licence, string Key) Create(string businessName, string email, string plan, int teamSeats, DateOnly? expires, int maxActivations, string notes,
-        string status = "active", string? accountId = null, Secrets? secrets = null)
+        string status = "active", string? accountId = null, Secrets? secrets = null, string product = Products.Default)
     {
         var key = UnusedKey();
         var id = "L" + Convert.ToHexString(RandomNumberGenerator.GetBytes(6));
         using var c = Open();
         using var cmd = c.CreateCommand();
         cmd.CommandText = """
-            INSERT INTO licences(id, key_hash, key_hint, business_name, email, plan, team_seats, expires, max_activations, status, notes, created, account_id, key_enc)
-            VALUES ($i,$h,$k,$b,$e,$p,$s,$x,$m,$st,$n,$c,$a,$ke);
+            INSERT INTO licences(id, key_hash, key_hint, business_name, email, plan, team_seats, expires, max_activations, status, notes, created, account_id, key_enc, product)
+            VALUES ($i,$h,$k,$b,$e,$p,$s,$x,$m,$st,$n,$c,$a,$ke,$pr);
             """;
         cmd.Parameters.AddWithValue("$i", id);
         cmd.Parameters.AddWithValue("$h", Hash(key));
+        cmd.Parameters.AddWithValue("$pr", Products.Find(product)?.Id ?? Products.Default);
         cmd.Parameters.AddWithValue("$k", key[^5..]);
         cmd.Parameters.AddWithValue("$b", businessName.Trim());
         cmd.Parameters.AddWithValue("$e", email.Trim());
@@ -266,12 +269,13 @@ public sealed class LicenceStore
                 r.IsDBNull(r.GetOrdinal("expires")) ? null : DateOnly.ParseExact(r.GetString(r.GetOrdinal("expires")), "yyyy-MM-dd", CultureInfo.InvariantCulture),
                 r.GetInt32(r.GetOrdinal("max_activations")), r.GetString(r.GetOrdinal("status")), r.GetString(r.GetOrdinal("notes")),
                 DateTime.Parse(r.GetString(r.GetOrdinal("created")), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind),
-                r.IsDBNull(r.GetOrdinal("account_id")) ? null : r.GetString(r.GetOrdinal("account_id"))));
+                r.IsDBNull(r.GetOrdinal("account_id")) ? null : r.GetString(r.GetOrdinal("account_id")),
+                r.GetString(r.GetOrdinal("product"))));
         return list;
     }
 
     public void Update(string id, string? businessName, string? email, string? plan, int? teamSeats, DateOnly? expires, bool clearExpiry,
-        int? maxActivations, string? status, string? notes)
+        int? maxActivations, string? status, string? notes, string? product = null)
     {
         using var c = Open();
         using var cmd = c.CreateCommand();
@@ -290,6 +294,7 @@ public sealed class LicenceStore
         if (maxActivations is not null) Set("max_activations", maxActivations);
         if (status is not null) Set("status", status);
         if (notes is not null) Set("notes", notes.Trim());
+        if (Products.Find(product) is { } p) Set("product", p.Id);
         if (sets.Count == 0) return;
         cmd.CommandText = $"UPDATE licences SET {string.Join(", ", sets)} WHERE id = $id;";
         cmd.Parameters.AddWithValue("$id", id);

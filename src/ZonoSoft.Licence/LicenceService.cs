@@ -4,7 +4,7 @@ using System.Text.Json.Nodes;
 
 namespace ZonoSoft.Licence;
 
-public sealed record ActivateRequest(string? Key, string? InstallId, string? BusinessName, string? DeviceName, string? Platform, string? AppVersion, string? Nonce = null);
+public sealed record ActivateRequest(string? Key, string? InstallId, string? BusinessName, string? DeviceName, string? Platform, string? AppVersion, string? Nonce = null, string? Product = null);
 public sealed record RefreshRequest(string? Token, string? InstallId, string? AppVersion, string? Nonce = null);
 public sealed record ApiResult(int Status, string? Token, string? Error, string? Message);
 
@@ -49,6 +49,7 @@ public sealed class LicenceService(LicenceStore store, TokenSigner signer, TimeP
         {
             ["v"] = 1,
             ["lid"] = l.Id,
+            ["prd"] = l.Product,
             ["iid"] = installId,
             ["bus"] = businessName.Length > 0 ? businessName : l.BusinessName,
             ["plan"] = l.Plan,
@@ -95,6 +96,12 @@ public sealed class LicenceService(LicenceStore store, TokenSigner signer, TimeP
         if (licence.Status == "revoked")
         {
             return new(403, null, "revoked", "This licence has been cancelled. Contact ZonoSoft.");
+        }
+        // A key only works in the software it was made for (apps that don't say which they are are treated as Shifenza)
+        var asking = string.IsNullOrWhiteSpace(r.Product) ? Products.Default : r.Product.Trim().ToLowerInvariant();
+        if (licence.Product != asking)
+        {
+            return new(403, null, "wrong_product", $"This key is for {Products.NameOf(licence.Product)}, not this app.");
         }
         if (licence.Status == "pending")
         {

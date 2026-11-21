@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
-<title>Shifenza licences</title>
+<title>ZonoSoft licences</title>
 <style>
   :root { --bg:#f3f4f1; --card:#fff; --ink:#1d2321; --muted:#5d6763; --line:#d9ddd8; --accent:#0d6660; --warn:#9a3412; --ok:#166534; }
   * { box-sizing:border-box; }
@@ -37,7 +37,7 @@
 </head>
 <body>
 <header>
-  <h1>Shifenza licences</h1>
+  <h1>ZonoSoft licences</h1>
   <div><button id="logout" class="hidden">Lock</button></div>
 </header>
 <main>
@@ -62,6 +62,7 @@
     <section class="card">
       <h2>New licence</h2>
       <div class="row">
+        <div><label>Software</label><select id="nProduct" aria-label="Software the key is for"></select></div>
         <div><label>Business name</label><input id="nBusiness" maxlength="80"></div>
         <div><label>Email</label><input id="nEmail" type="email" maxlength="120"></div>
         <div><label>Plan</label><select id="nPlan"><option value="monthly">Monthly (£12)</option><option value="yearly">Yearly (£120)</option><option value="lifetime">Lifetime</option><option value="demo">Demo key (needs internet; 14 days unless you pick a date)</option></select></div>
@@ -85,7 +86,7 @@
         <button id="bulkRelease" disabled>Deactivate devices</button>
         <button class="danger" id="bulkDelete" disabled>Delete selected</button></div>
       <div class="table-wrap"><table>
-        <thead><tr><th><input type="checkbox" id="allLic" aria-label="Select all licences"></th><th>Business</th><th>Plan</th><th>Team</th><th>Paid until</th><th>Status</th><th>Used on</th><th></th></tr></thead>
+        <thead><tr><th><input type="checkbox" id="allLic" aria-label="Select all licences"></th><th>Business</th><th>Software</th><th>Plan</th><th>Team</th><th>Paid until</th><th>Status</th><th>Used on</th><th></th></tr></thead>
         <tbody id="rows"></tbody>
       </table></div>
     </section>
@@ -179,6 +180,10 @@ $("stripeSave").onclick = async () => {
 async function load() {
   loadPayments().catch(() => {});
   loadVault().catch(() => {});
+  if (!$("nProduct").options.length) {
+    const products = await api("/products");
+    $("nProduct").innerHTML = products.map(p => `<option value="${esc(p.id)}" title="${esc(p.covers)}">${esc(p.name)}</option>`).join("");
+  }
   const list = await api("/licences");
   $("rows").innerHTML = list.map(l => {
     const status = l.status === "active" && l.expires && new Date(l.expires) < new Date(new Date().toDateString()) ? "expired" : l.status;
@@ -186,7 +191,7 @@ async function load() {
     return `<tr>
       <td><input type="checkbox" class="selLic" value="${esc(l.id)}" aria-label="Select ${esc(l.businessName)}"></td>
       <td><strong>${esc(l.businessName)}</strong><div class="muted">${esc(l.email)} · key …${esc(l.keyHint)} · ${esc(l.id)}</div>${l.account ? `<div class="muted">Account <strong>${esc(l.account.username)}</strong> · ${esc(l.account.contactName)} · ${esc(l.account.email)} · ${esc(l.account.phone)}</div>` : ""}${l.notes ? `<div class="muted">${esc(l.notes)}</div>` : ""}</td>
-      <td>${esc(l.plan)}</td><td>${l.teamSeats}</td><td>${esc(l.expires || "—")}</td>
+      <td>${esc(l.productName)}</td><td>${esc(l.plan)}</td><td>${l.teamSeats}</td><td>${esc(l.expires || "—")}</td>
       <td><span class="pill ${status}">${status}</span></td>
       <td>${acts.length}/${l.maxActivations}${acts.map(a => `<div class="muted">${esc(a.businessName || a.deviceName)} · ${esc(a.platform)} ${esc(a.appVersion)} · seen ${when(a.lastSeenUtc)} <button data-release="${a.id}">Release</button></div>`).join("")}</td>
       <td style="white-space:nowrap">
@@ -195,7 +200,7 @@ async function load() {
         ${l.status === "revoked" ? `<button data-restore="${l.id}">Restore</button> <button class="danger" data-delete="${l.id}">Delete</button>` : `<button class="danger" data-revoke="${l.id}">Cancel</button>`}
         <button data-newkey="${l.id}">New key</button>
       </td></tr>`;
-  }).join("") || `<tr><td colspan="8" class="muted">No licences yet.</td></tr>`;
+  }).join("") || `<tr><td colspan="9" class="muted">No licences yet.</td></tr>`;
   const files = await api("/downloads");
   $("downloads").innerHTML = files.map(f => `<tr><td><input type="checkbox" class="selFile" value="${esc(f.name)}" aria-label="Select ${esc(f.name)}"></td><td><a href="/downloads/${encodeURIComponent(f.name)}">${esc(f.name)}</a><div class="muted">SHA-256 ${esc(f.sha256.slice(0, 16))}…</div></td><td>${f.product === "team" ? "Shifenza Team" : "Shifenza"} · ${esc(f.platform)}</td><td>${esc(f.version)}</td><td>${(f.bytes / 1048576).toFixed(1)} MB</td><td>${when(f.uploadedUtc)}</td><td><button class="danger" data-delfile="${esc(f.name)}">Delete</button></td></tr>`).join("") || `<tr><td colspan="7" class="muted">No downloads yet — upload the builds above.</td></tr>`;
   const ev = await api("/events");
@@ -263,7 +268,7 @@ $("refresh").onclick = load;
 
 $("create").onclick = async () => {
   const j = await api("/licences", {
-    businessName: $("nBusiness").value, email: $("nEmail").value, plan: $("nPlan").value,
+    product: $("nProduct").value, businessName: $("nBusiness").value, email: $("nEmail").value, plan: $("nPlan").value,
     teamSeats: +$("nSeats").value || 5, expires: $("nExpires").value || null, maxActivations: +$("nMax").value || 1, notes: $("nNotes").value
   });
   $("newKeyText").textContent = j.key; $("newKey").classList.remove("hidden");

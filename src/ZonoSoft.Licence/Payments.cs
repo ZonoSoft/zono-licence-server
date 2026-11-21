@@ -234,7 +234,7 @@ public sealed class Payments
             new("line_items[0][price_data][unit_amount]", pence),
             new("line_items[0][price_data][recurring][interval]", yearly ? "year" : "month"),
             new("line_items[0][price_data][product_data][name]",
-                $"Shifenza licence ({(yearly ? "yearly" : "monthly")}, {licence.TeamSeats} team members)"),
+                $"{Products.NameOf(licence.Product)} licence ({(yearly ? "yearly" : "monthly")}, {licence.TeamSeats} team members)"),
             new("metadata[licence_id]", licence.Id),
             new("subscription_data[metadata][licence_id]", licence.Id),
             new("subscription_data[description]", $"{licence.BusinessName} · licence ending {licence.KeyHint}"),
