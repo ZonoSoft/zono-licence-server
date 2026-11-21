@@ -47,7 +47,7 @@ p { margin: 0 0 1em; max-width: 64ch; }
 .site-head { position: sticky; top: 0; z-index: 10; background: rgba(233, 238, 235, 0.92); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
 .site-head .wrap { display: flex; align-items: center; gap: 24px; min-height: 64px; }
 .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--ink); font-family: var(--wide); font-stretch: 115%; font-weight: 800; font-size: 1.2rem; }
-.brand svg { width: 30px; height: 30px; flex: none; }
+.brand svg { width: 36px; height: 30px; flex: none; }
 .site-nav { display: flex; gap: 22px; margin-left: auto; align-items: center; }
 .site-nav a { color: var(--ink); text-decoration: none; font-weight: 700; white-space: nowrap; }
 .site-nav a:hover, .site-nav a[aria-current="page"] { color: var(--teal); text-decoration: underline; }
