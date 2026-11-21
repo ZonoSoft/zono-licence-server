@@ -1,0 +1,136 @@
+{
+  "platforms": [
+    { "id": "windows", "name": "Windows", "download": "Windows" },
+    { "id": "android", "name": "Android", "download": "Android" },
+    { "id": "mac", "name": "Apple Mac", "download": "Mac" },
+    { "id": "ios", "name": "iPhone and iPad (iOS)", "short": "iOS", "download": "iOS" }
+  ],
+  "products": [
+    {
+      "id": "shifenza",
+      "download": "workforce",
+      "name": "Shifenza",
+      "icon": "/img/shifenza-icon.svg",
+      "tagline": "Rotas, clocking in, holidays and payroll hours for managers.",
+      "info": [
+        "Shifenza is for the manager. Plan the weekly rota and print it on one A4 page, book holiday and absence, see who's clocked in, check timesheets and send payroll hours to whoever does your pay.",
+        "Your business's data stays in your own storage: on your PC, or shared through your own OneDrive, Google Drive or network folder, encrypted. ZonoSoft never sees it.",
+        "Needs a licence key (£12 a month including 5 team members), or a free demo key to try it first."
+      ],
+      "learnMore": "/shifenza",
+      "platforms": {
+        "windows": {
+          "minimum": [
+            ["System", "Windows 10 version 1809 or later (64-bit)"],
+            ["Processor", "64-bit (x64), 2 cores"],
+            ["Memory", "4 GB RAM"],
+            ["Storage", "400 MB free"],
+            ["Screen", "1280 × 720"],
+            ["Internet", "Needed for licence checks, updates and shared storage"]
+          ],
+          "recommended": [
+            ["System", "Windows 11 (64-bit)"],
+            ["Processor", "64-bit (x64), 4 cores or more"],
+            ["Memory", "8 GB RAM"],
+            ["Storage", "1 GB free (room for backups)"],
+            ["Screen", "1920 × 1080"],
+            ["Extras", "Windows Hello (face or fingerprint) for quick sign-in; a printer for A4 rotas"]
+          ],
+          "setup": [
+            "Download the installer and open it.",
+            "If Windows shows \"Windows protected your PC\", choose <strong>More info</strong>, then <strong>Run anyway</strong>.",
+            "Follow the steps. You don't need to be an administrator, and nothing else needs installing.",
+            "Open Shifenza from the Start menu, create the first manager's login, then enter your licence or demo key in Settings, Licence."
+          ],
+          "guide": "/shifenza/guides/shifenza-windows"
+        },
+        "android": {
+          "minimum": [
+            ["System", "Android 6.0 or later"],
+            ["Memory", "2 GB RAM"],
+            ["Storage", "300 MB free"],
+            ["Screen", "5-inch phone"],
+            ["Internet", "Needed for licence checks, updates and shared storage"]
+          ],
+          "recommended": [
+            ["System", "Android 12 or later"],
+            ["Memory", "4 GB RAM"],
+            ["Storage", "500 MB free"],
+            ["Screen", "Tablet, or a 6-inch phone or larger"],
+            ["Extras", "Fingerprint or face unlock for quick sign-in"]
+          ],
+          "setup": [
+            "Download the .apk on the phone or tablet.",
+            "Open it. When asked, allow your browser to install apps.",
+            "Tap <strong>Install</strong>, then open Shifenza.",
+            "Create the first manager's login, then enter your licence or demo key in Settings, Licence."
+          ],
+          "guide": "/shifenza/guides/shifenza-android"
+        }
+      }
+    },
+    {
+      "id": "shifenza-team",
+      "download": "team",
+      "name": "Shifenza Team",
+      "icon": "/img/shifenza-icon.svg",
+      "tagline": "For team members: shifts, holiday requests and clocking in.",
+      "info": [
+        "Shifenza Team is the app for your staff. Team members see their shifts, request holiday and clock in and out.",
+        "It joins your business with a team code from the manager and only sees what each team member is allowed to see. It's free: team members are covered by the business's Shifenza licence.",
+        "Install it on a shared clocking-in PC or tablet, or on each team member's own phone."
+      ],
+      "learnMore": "/shifenza#team",
+      "platforms": {
+        "windows": {
+          "minimum": [
+            ["System", "Windows 10 version 1809 or later (64-bit)"],
+            ["Processor", "64-bit (x64), 2 cores"],
+            ["Memory", "4 GB RAM"],
+            ["Storage", "400 MB free"],
+            ["Screen", "1280 × 720"],
+            ["Internet", "Needed to reach your business's shared storage"]
+          ],
+          "recommended": [
+            ["System", "Windows 11 (64-bit)"],
+            ["Processor", "64-bit (x64), 4 cores"],
+            ["Memory", "8 GB RAM"],
+            ["Storage", "600 MB free"],
+            ["Screen", "1920 × 1080, or a touch screen for clocking in"],
+            ["Extras", "Windows Hello (face or fingerprint) for quick sign-in"]
+          ],
+          "setup": [
+            "Download the installer and open it.",
+            "If Windows shows \"Windows protected your PC\", choose <strong>More info</strong>, then <strong>Run anyway</strong>.",
+            "Follow the steps, then open Shifenza Team from the Start menu.",
+            "Enter the team code your manager gives you (it starts SFZ1-)."
+          ],
+          "guide": "/shifenza/guides/team-windows"
+        },
+        "android": {
+          "minimum": [
+            ["System", "Android 6.0 or later"],
+            ["Memory", "2 GB RAM"],
+            ["Storage", "300 MB free"],
+            ["Screen", "5-inch phone"],
+            ["Internet", "Needed to reach your business's shared storage"]
+          ],
+          "recommended": [
+            ["System", "Android 12 or later"],
+            ["Memory", "4 GB RAM"],
+            ["Storage", "500 MB free"],
+            ["Screen", "6-inch phone or larger"],
+            ["Extras", "Fingerprint or face unlock for quick sign-in"]
+          ],
+          "setup": [
+            "Download the .apk on the phone.",
+            "Open it. When asked, allow your browser to install apps.",
+            "Tap <strong>Install</strong>, then open Shifenza Team.",
+            "Enter the team code your manager gives you (it starts SFZ1-)."
+          ],
+          "guide": "/shifenza/guides/team-android"
+        }
+      }
+    }
+  ]
+}

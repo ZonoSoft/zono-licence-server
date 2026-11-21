@@ -247,3 +247,28 @@ section { padding: 80px 0; }
 .guide-card:hover { border-color: var(--teal); }
 .note-box { background: #f4f7f5; border: 1px dashed var(--line); border-radius: 10px; padding: 18px 20px; max-width: 70ch; }
 .note-box p { margin: 0 0 10px; }
+
+/* Software catalogue (/software) */
+.os-tabs { display: flex; flex-wrap: wrap; gap: 6px; border-bottom: 2px solid var(--line); margin-bottom: 28px; }
+.os-tabs a { padding: 10px 18px; border-radius: var(--radius) var(--radius) 0 0; color: var(--ink); text-decoration: none; font-weight: 700; margin-bottom: -2px; border: 2px solid transparent; }
+.os-tabs a:hover { background: var(--teal-soft); }
+.os-tabs a[aria-selected="true"] { background: var(--paper); border-color: var(--line); border-bottom-color: var(--paper); color: var(--teal-deep); }
+.app-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 18px; }
+.app-card { display: flex; gap: 16px; align-items: flex-start; padding: 20px; background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius); color: var(--ink); text-decoration: none; }
+.app-card:hover, .app-card:focus-visible { border-color: var(--teal); box-shadow: 0 0 0 2px var(--teal-soft); }
+.app-card img { border-radius: 14px; flex: none; }
+.app-card > span { display: flex; flex-direction: column; gap: 4px; }
+.app-card strong { font-size: 1.2rem; }
+.app-head { display: flex; gap: 20px; align-items: center; margin: 12px 0 8px; }
+.app-head img { border-radius: 18px; flex: none; }
+.app-head h2 { margin: 0; }
+.app-part { padding: 24px 0 8px; border-top: 1px solid var(--line); margin-top: 20px; }
+.app-part h3 { margin-top: 0; }
+.spec-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
+.spec-grid h4 { margin: 0 0 8px; }
+.spec-table { width: 100%; border-collapse: collapse; background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius); }
+.spec-table th, .spec-table td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.spec-table th { width: 34%; color: var(--muted); font-weight: 600; }
+.spec-table tr:last-child th, .spec-table tr:last-child td { border-bottom: 0; }
+.hash { font-size: .8rem; color: var(--muted); word-break: break-all; }
+@media (max-width: 560px) { .os-tabs a { padding: 8px 12px; } .app-head img { width: 64px; height: 64px; } }

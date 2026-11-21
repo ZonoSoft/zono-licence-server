@@ -100,7 +100,7 @@
     <section class="card">
       <h2>Download the apps</h2>
       <p class="muted">Installers for Windows and Android for Shifenza and Shifenza Team.</p>
-      <p><a class="button" href="/shifenza/download">Go to downloads</a></p>
+      <p><a class="button" href="/software">Go to downloads</a></p>
     </section>
 
     </div>
@@ -232,7 +232,7 @@ async function load() {
       <p><button class="primary" type="submit">Pay by card or PayPal</button></p>
     </form>` : `<p><strong>No licence yet.</strong></p>
     <ol class="muted" style="padding-left:1.2em">
-      <li><a href="/shifenza/download">Download Shifenza</a>. To try it before buying, email ZonoSoft@outlook.com for a free demo key.</li>
+      <li><a href="/software">Download Shifenza</a>. To try it before buying, email ZonoSoft@outlook.com for a free demo key.</li>
       <li>In the app, go to Settings, then Licence, then Buy a licence.</li>
       <li>Use this account's username and password there. The licence is added to this account.</li>
     </ol>`;
@@ -317,7 +317,7 @@ $("licences").onclick = e => {
 };
 
 // Where to go after signing in (only a page on this site)
-const next = (() => { const n = new URLSearchParams(location.search).get("next") || ""; return /^\/(?![\/\\])[A-Za-z0-9/_\-.]*$/.test(n) ? n : ""; })();
+const next = (() => { const n = new URLSearchParams(location.search).get("next") || ""; return /^\/(?![\/\\])[A-Za-z0-9/_\-.]*(#[A-Za-z0-9/_\-]*)?$/.test(n) ? n : ""; })();
 if (next) {
   $("loginLead").textContent = "Sign in to your ZonoSoft account to download the apps. No account yet? Creating one is free.";
   $("regLink").href = "/account/register?next=" + encodeURIComponent(next);

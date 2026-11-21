@@ -109,7 +109,7 @@
       let j = {}; try { j = await r.json(); } catch {}
       if (r.ok && j.ok) {
         const n = new URLSearchParams(location.search).get("next") || "";
-        location.href = /^\/(?![\/\\])[A-Za-z0-9/_\-.]*$/.test(n) ? n : "/portal";
+        location.href = /^\/(?![\/\\])[A-Za-z0-9/_\-.]*(#[A-Za-z0-9/_\-]*)?$/.test(n) ? n : "/portal";
         return;
       }
       fail(r.status === 429 ? "Too many tries. Wait a minute and try again." : (j.message || "The account couldn't be created. Try again."));

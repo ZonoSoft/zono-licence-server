@@ -110,7 +110,7 @@ app.MapGet("/downloads/{name}", (string name, Downloads d, CustomerStore store, 
 {
     if (!Downloads.ValidName(name) || !File.Exists(d.PathOf(name))) return Results.NotFound();
     if (store.SessionAccount(SessionToken(c)) is null)
-        return Results.Redirect("/portal?next=" + Uri.EscapeDataString("/shifenza/download"));
+        return Results.Redirect("/portal?next=" + Uri.EscapeDataString("/software"));
     c.Response.Headers.CacheControl = "private, no-store";
     return Results.File(d.PathOf(name), Downloads.ContentType(name), name, enableRangeProcessing: true);
 }).RequireRateLimiting("refresh");
@@ -321,6 +321,15 @@ admin.MapPost("/licences/{id}", (string id, LicenceChange ch, LicenceStore s, Ht
         ch.MaxActivations is { } m ? Math.Clamp(m, 1, 50) : null, status, ch.Notes, ch.Product);
     s.Log(id, "changed", System.Text.Json.JsonSerializer.Serialize(ch));
     return Results.Json(new { ok = true, licence = Describe(s, s.Get(id)!) });
+});
+
+// Shows a licence's key again (kept encrypted; licences made before keys were stored need a new key instead)
+admin.MapGet("/licences/{id}/key", (string id, LicenceStore s, HttpContext c) =>
+{
+    if (s.Get(id) is null) return Results.NotFound();
+    var key = s.KeyOf(id, c.RequestServices.GetRequiredService<Secrets>());
+    if (key is null) return Results.Json(new { ok = false, message = "This licence was made before keys were kept, so its key can't be shown. Use New key to give the customer a fresh one." }, statusCode: 404);
+    return Results.Json(new { ok = true, key });
 });
 
 admin.MapPost("/licences/{id}/new-key", (string id, LicenceStore s, HttpContext c) =>

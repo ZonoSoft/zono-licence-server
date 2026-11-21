@@ -117,6 +117,12 @@
     </section>
   </div>
 </main>
+<dialog id="keyDialog" aria-labelledby="keyDialogTitle" style="border:1px solid #ccc;border-radius:12px;padding:24px;max-width:560px">
+  <h2 id="keyDialogTitle" style="margin-top:0">Licence key</h2>
+  <p class="muted" id="keyDialogName"></p>
+  <div class="key" id="keyDialogText"></div>
+  <p><button id="keyDialogCopy">Copy</button> <button id="keyDialogClose">Close</button></p>
+</dialog>
 <script>
 const $ = id => document.getElementById(id);
 let key = sessionStorage.getItem("zonosoftAdmin") || "";
@@ -198,6 +204,7 @@ async function load() {
         ${l.status === "pending" ? `<button class="primary" data-paid="${l.id}">Mark paid</button>` : ""}
         <button data-edit="${l.id}">Change</button>
         ${l.status === "revoked" ? `<button data-restore="${l.id}">Restore</button> <button class="danger" data-delete="${l.id}">Delete</button>` : `<button class="danger" data-revoke="${l.id}">Cancel</button>`}
+        <button data-showkey="${l.id}">Show key</button>
         <button data-newkey="${l.id}">New key</button>
       </td></tr>`;
   }).join("") || `<tr><td colspan="9" class="muted">No licences yet.</td></tr>`;
@@ -281,6 +288,8 @@ $("nPlan").onchange = () => {
   if (demo) { $("nNotes").value = $("nNotes").value || "Demo key"; }
 };
 $("copyKey").onclick = () => navigator.clipboard.writeText($("newKeyText").textContent);
+$("keyDialogCopy").onclick = () => navigator.clipboard.writeText($("keyDialogText").textContent);
+$("keyDialogClose").onclick = () => { $("keyDialogText").textContent = ""; $("keyDialog").close(); };
 
 $("rows").onclick = async e => {
   const b = e.target.closest("button"); if (!b) return;
@@ -298,6 +307,16 @@ $("rows").onclick = async e => {
     await api(`/licences/${l.id}`, { status: "active", expires: until.trim() });
   }
   if (b.dataset.release && confirm("Release this activation? The key can then be used on another business or PC.")) await api(`/activations/${b.dataset.release}/release`, {});
+  if (b.dataset.showkey) {
+    const r = await fetch(`/api/admin/licences/${b.dataset.showkey}/key`, { headers: { "Authorization": "Bearer " + key } });
+    const j = await r.json().catch(() => ({}));
+    const l = window.licences.find(x => x.id === b.dataset.showkey);
+    if (!r.ok || !j.key) { alert(j.message || "The key couldn't be shown."); return; }
+    $("keyDialogName").textContent = l ? `${l.productName} · ${l.businessName}` : "";
+    $("keyDialogText").textContent = j.key;
+    $("keyDialog").showModal();
+    return;
+  }
   if (b.dataset.newkey && confirm("Make a new key? The old key stops working for new activations (current ones keep working).")) {
     const j = await api(`/licences/${b.dataset.newkey}/new-key`, {});
     $("newKeyText").textContent = j.key; $("newKey").classList.remove("hidden"); window.scrollTo(0, 0);
